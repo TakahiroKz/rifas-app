@@ -16,7 +16,7 @@ No recolectamos datos sensibles ni de menores de edad. La participación en rifa
 ## 2. Finalidades
 1. Gestionar la reserva, venta y pago de números de una rifa.
 2. Contactar al participante sobre su(s) número(s), pagos y resultados.
-3. Determinar y comunicar ganadores.
+3. Anunciar ganadores con base en resultados oficiales de terceros (la plataforma no realiza los sorteos).
 4. Seguridad, prevención de fraude y abuso.
 5. Cumplir obligaciones legales.
 

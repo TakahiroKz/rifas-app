@@ -1,9 +1,11 @@
 # Plan: Plataforma de rifas (microSaaS)
 
-> Estado: planificación. Última actualización: 2026-11-02.
+> Estado: planificación. Última actualización: 2026-11-02. Repo: `TakahiroKz/rifas-app`.
 
 ## 1. Visión
-Plataforma para gestionar **los números de una rifa** (sin pagos en línea) y, además, **consultar resultados de loterías y sorteos** (Colombia y otros países) para definir ganadores.
+Plataforma para gestionar **los números de una rifa** (sin pagos en línea) y, además, **consultar resultados de loterías y sorteos** (Colombia y otros países) para anunciar ganadores.
+
+**Principio de negocio**: la plataforma **no realiza sorteos ni capta dinero**. Solo gestiona números y anuncia al ganador con base en resultados oficiales de terceros (p. ej. [gane.com.co](https://www.gane.com.co)). Captar dinero por rifa se estudiaría a largo plazo.
 
 - **Hoy**: un solo organizador (Leo) y una rifa activa a la vez.
 - **Mañana**: microSaaS multiusuario; cualquier persona se registra y gestiona sus propias rifas.
@@ -39,30 +41,60 @@ activo ──(público, WhatsApp)──▶ apartado ──(24 h sin gestión)─
 ## 4. Flujo público
 1. `/<org>/<rifa>` muestra la cuadrícula (activo / apartado / vendido). No se muestran datos de compradores.
 2. El cliente elige uno o varios números `activo`.
-3. Pulsa **"Apartar por WhatsApp"**: el backend aparta los números de forma **atómica** (todo o nada) y se abre `https://wa.me/<tel>?text=<mensaje>` con la rifa y los números.
+3. Pulsa **"Apartar por WhatsApp"**: el backend aparta los números de forma **atómica** (todo o nada) y se abre el enlace de WhatsApp con la rifa y los números (ver §4.1).
 4. Los datos personales (nombre, etc.) se piden **dentro de WhatsApp**, no en la web.
 5. El admin cobra por fuera y en el panel marca `vendido` (+ `pagado` o `debe` con fecha).
 
-## 5. Módulo de resultados de loterías (scraping)
-Objetivo: tener resultados oficiales de loterías/sorteos para vincularlos a una rifa y determinar el número ganador.
+### 4.1 Enlace de WhatsApp
+Formato: `https://wa.me/<telefono_sin_+>?text=<mensaje_url_encoded>` (el teléfono va **sin** `+` ni espacios, con indicativo de país; p. ej. `57…`).
+El **único parámetro** que acepta `wa.me` para prellenar datos es `text`. Todo lo demás (rifa, números) debe ir dentro de ese texto, codificado con `encodeURIComponent`.
+
+Ejemplo de mensaje (antes de codificar):
+```
+Hola, quiero apartar los números 07, 23 y 85 de la rifa "Rifa de Navidad".
+Código de apartado: RF-4K9P (válido 24 h).
+Política de privacidad: https://turifa.capitalfinaura.com/privacidad
+```
+El **código de apartado** permite al admin buscar el apartado rápido en el panel. El teléfono es una configuración de la organización (no se escribe en el código).
+
+## 5. Módulo de resultados de loterías
+
+Objetivo: obtener resultados oficiales de loterías/sorteos, vincularlos a una rifa y **anunciar** el ganador. Nosotros no hacemos el sorteo.
+
+### Fuentes
+- **Prioridad**: Gane (gane.com.co) y sus APIs. Leo trabajó en Gane y conoce los datos; antes de integrar, **confirmar por escrito que el uso de esas APIs es permitido** y usar solo endpoints públicos/autorizados (nunca credenciales ni accesos internos).
+- Si no hay API: scraping de la página oficial, citando siempre la fuente.
+- Entrada manual de respaldo (marcada como manual).
+
+### Loterías/sorteos iniciales (Fase 4)
+1. **Chontico**
+2. **Dorado Noche**
+3. **Lotería del Valle**
+
+(Confirmar para cada uno la fuente y el formato de resultado: número principal, serie, hora.)
 
 ### Diseño
-- **Adaptadores por fuente**: cada lotería/sorteo tiene un adaptador aislado (`fetch` + `parse` → resultado normalizado). Si una web cambia, solo se arregla ese adaptador.
-- **Ejecución programada**: Cron Triggers de Workers o un scraper en GitHub Actions (gratis) que envía resultados al API. Para sitios que requieren JavaScript, usar Playwright en Actions antes que pagar un navegador remoto.
-- **Entrada manual de respaldo**: el admin puede digitar un resultado si falla el scraping (y queda marcado como manual).
-- **Trazabilidad**: se guarda fuente, URL, fecha de captura y el dato crudo, para poder auditar un ganador.
-- **Alertas**: si un adaptador falla o devuelve datos raros, se notifica al admin.
+- **Adaptador por fuente**: `fetch` + `parse` → resultado normalizado. Si cambia una API o web, solo se arregla ese adaptador.
+- **Ejecución**: Cron Triggers de Workers para APIs; para sitios con JavaScript, scraper en GitHub Actions (Playwright) que envía al API.
+- **Trazabilidad**: fuente, URL, fecha de captura y dato crudo.
+- **Alertas** al admin si un adaptador falla o devuelve datos raros.
 
-### Alcance gradual
-1. Colombia: loterías regionales (Bogotá, Medellín, Cundinamarca, Boyacá, Valle, Cauca, Huila, Manizales, Meta, Risaralda, Santander, Tolima, Quindío), Baloto/Revancha y chances.
-2. Otros países (México, España, Argentina, etc.) según demanda.
+### Premios y reglas de ganador
+Una rifa puede tener **N premios** (lugares). Cada premio define su propia regla:
+| Campo | Ejemplo |
+|---|---|
+| `place` | 1.º, 2.º, 3.º… |
+| `lottery_id` | Chontico / Dorado Noche / Lotería del Valle |
+| `match_type` | `last` (últimas cifras) o `first` (primeras cifras) |
+| `digits` | 1, 2, 3 o 4 |
 
-### Vinculación con una rifa
-La rifa define: lotería, fecha del sorteo y **regla del número ganador** (p. ej. últimas *k* cifras del resultado, con *k* = cifras del total de números). Al publicarse el resultado, el sistema propone el ganador y el admin lo confirma.
+Ejemplo: 1.º lugar = **últimas 2 cifras** del resultado; 2.º lugar = **primeras 2 cifras** del resultado.
+Los números de la rifa **empiezan en 00** y se muestran con ceros a la izquierda (ancho = cifras de `total_numbers - 1`; 100 números → `00–99`).
+Al publicarse el resultado, el sistema calcula los números ganadores por premio, y el admin los **confirma y anuncia**.
 
-### Riesgos a validar
-- **Términos de uso / robots.txt** de cada fuente; preferir fuentes oficiales o APIs. Citar la fuente siempre.
-- **Fragilidad** del scraping: por eso adaptadores aislados, pruebas con HTML guardado y entrada manual de respaldo.
+### Riesgos
+- Términos de uso de cada fuente (ver Fuentes).
+- Fragilidad del scraping: adaptadores aislados, pruebas con HTML/JSON guardado y entrada manual.
 
 ## 6. Datos personales y legal
 - **Política de privacidad**: borrador en [`docs/PRIVACIDAD.md`](PRIVACIDAD.md) (Colombia, Ley 1581 de 2012 / habeas data). Requiere revisión de un abogado antes de publicarse.
@@ -71,12 +103,14 @@ La rifa define: lotería, fecha del sorteo y **regla del número ganador** (p. e
 
 ## 7. Modelo de datos (borrador, multi-tenant)
 - **users**: id, email, password_hash, name, created_at
-- **organizations**: id, name, slug, whatsapp_phone, created_at
+- **organizations**: id, name, slug, whatsapp_phone (en config, formato `57XXXXXXXXXX`), created_at
 - **memberships**: user_id, org_id, role (`owner`/`admin`)
-- **raffles**: id, org_id, slug, title, description, prize, total_numbers (10–100000), number_start (0|1), ticket_price, status (`borrador`/`activa`/`cerrada`), lottery_id, draw_date, winning_rule, created_at
+- **raffles**: id, org_id, slug, title, description, total_numbers (10–100000), number_start (siempre 0), number_width, ticket_price, status (`borrador`/`activa`/`cerrada`), draw_date, created_at
+- **raffle_prizes**: id, raffle_id, place, description, lottery_id, match_type (`last`/`first`), digits (1–4)
+- **raffle_winners**: raffle_prize_id, number, draw_result_id, confirmed_at
 - **tickets**: raffle_id, number, status (`activo`/`apartado`/`vendido`), payment_status (`pagado`/`debe`/null), due_date, buyer_name, buyer_phone, note, reserved_at, reserved_until, sold_at, updated_at — PK (raffle_id, number)
 - **ticket_events**: id, raffle_id, number, from_status, to_status, actor (`public`/`admin`/`system`), at, meta — historial
-- **lotteries**: id, country, name, schedule, source_adapter
+- **lotteries**: id, country, name, schedule, source_adapter (Gane u otra)
 - **draw_results**: id, lottery_id, draw_date, winning_number, series, source_url, raw, fetched_at, is_manual
 - Toda consulta se filtra por `org_id` (aislamiento entre organizadores).
 
@@ -92,12 +126,12 @@ La rifa define: lotería, fecha del sorteo y **regla del número ganador** (p. e
 | Base de datos | Cloudflare D1 (SQLite) |
 | Frontend | Vite + Preact (ligero en móvil, cuadrícula virtualizada) |
 | Auth | Email + contraseña con hash en WebCrypto (PBKDF2) y cookie de sesión `HttpOnly`; un solo usuario habilitado al inicio |
-| Tareas programadas | Cron Triggers (expirar apartados cada pocos minutos; resultados) |
+| Tareas programadas | Cron Triggers (expirar apartados cada pocos minutos; consultar resultados) |
 | Scraping pesado | GitHub Actions + Playwright → API |
 | Correo (futuro) | Cloudflare Email / Resend (free) para recuperar contraseña |
 
 ### Dominios
-Sí se pueden usar **varios dominios**: Cloudflare Pages permite agregar varios dominios y subdominios personalizados al mismo proyecto (p. ej. `rifas.tudominio.com` para el producto y otro dominio para otra marca). Para el futuro SaaS, **Cloudflare for SaaS** permite que cada cliente use su propio dominio (hay un cupo gratuito de hostnames, a verificar al momento de implementarlo). Para organizarlo: `app.` (admin), `<org>.` o `/<org>/` (público).
+Sí se pueden usar **varios dominios**: Cloudflare Pages permite agregar varios dominios y subdominios personalizados al mismo proyecto (p. ej. el producto en un subdominio y otra marca en otro dominio). Para el futuro SaaS, **Cloudflare for SaaS** permite que cada cliente use su propio dominio (hay un cupo gratuito de hostnames, a verificar al momento de implementarlo). **Dominio definido**: `capitalfinaura.com`. Público en **`turifa.capitalfinaura.com`**; el admin iría en `turifa.capitalfinaura.com/admin` (o `admin.turifa…`, por decidir). Verificar que el dominio use DNS de Cloudflare (o crear un CNAME del subdominio hacia Pages).
 
 ## 9. Seguridad
 - Validación en servidor (rango, máximo de números por solicitud, formato).
@@ -131,18 +165,23 @@ rifas/
 |---|---|
 | Estados | `activo` / `apartado` / `vendido` |
 | Apartado | Caduca solo a las 24 h; queda en historial |
-| Deuda | Número `vendido` con `debe` + fecha de pago programada |
+| Deuda | `vendido` con `debe` + fecha de pago; basta con un **listado** (sin recordatorios) |
 | Rifas | Una activa hoy; arquitectura multi-tenant |
-| Cantidad de números | 10 a 100 000 |
+| Números | 10 a 100 000, **empiezan en 00** (con ceros a la izquierda) |
+| Sorteos | No los hacemos ni captamos dinero; anunciamos ganadores con resultados de terceros |
+| Ganadores | N premios; regla por premio: primeras/últimas 1–4 cifras de una lotería |
+| Fuente de resultados | Gane (API/sitio), con respaldo manual |
+| Loterías iniciales | Chontico, Dorado Noche, Lotería del Valle |
+| WhatsApp | `wa.me/<tel>?text=…` (único parámetro: `text`); teléfono en config |
+| Dominio | `capitalfinaura.com`, público en `turifa.capitalfinaura.com` |
 | Datos del comprador | Se piden por WhatsApp; política de privacidad requerida |
-| Loterías | Scraping de Colombia y otros países + entrada manual |
-| Infra | Cloudflare (con dominio propio) |
+| Infra | Cloudflare |
 
 ## 13. Preguntas abiertas
-1. **Regla del ganador** cuando el total no es potencia de 10 (50, 200, 300): ¿últimas 2 o 3 cifras y se repite el sorteo si cae fuera de rango, o módulo del total?
-2. ¿Numeración desde 0 (00–99) o desde 1? Afecta la cantidad de cifras.
-3. ¿Quieres **un teléfono de WhatsApp por organización** o por rifa?
-4. ¿El admin necesita **recordatorios** de deudas por vencer (email/WhatsApp/notificación) o basta con un listado?
-5. ¿Cuál es el dominio que usarás y qué subdominio quieres para el panel y para lo público?
-6. Prioridad de loterías para la Fase 4: ¿cuáles son las 2 o 3 que más usas para tus rifas?
-7. ¿Ya cuentas con el permiso/autorización para tus rifas? Define si la plataforma debe pedirlo a futuros usuarios.
+1. **Cifras vs. ancho del número**: con regla de 1–4 cifras, ¿qué pasa si hay menos cifras que el ancho (p. ej. 1 cifra en una rifa 00–99 coincidirían ~10 números)? ¿Se permite varios ganadores por premio o la regla debe igualar el ancho?
+2. **Rifas de 100 000 números** (ancho 5): ¿se permiten reglas de 5 cifras o el máximo sigue en 4?
+3. **Resultado fuera de rango** (p. ej. rifa 00–49 y resultado termina en 73): ¿el premio queda desierto, se espera al siguiente sorteo o se usa otro resultado?
+4. ¿El admin va en `turifa.capitalfinaura.com/admin` o en un subdominio aparte?
+5. **Gane**: ¿qué API/endpoints concretos usaremos y tienes autorización por escrito para su uso en este proyecto?
+6. ¿Un premio puede usar una lotería distinta a la de otro premio de la misma rifa? (el modelo lo permite)
+7. ¿Ya cuentas con el permiso/autorización para tus rifas? (aunque no hagamos el sorteo, quien organiza la rifa sí lo necesita)

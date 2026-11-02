@@ -4,7 +4,7 @@ Plataforma web low cost para gestionar **los números de una rifa** (sin pagos e
 
 - **Página pública**: el cliente ve los números, elige uno o varios y se abre WhatsApp con un mensaje prellenado. El número queda *apartado* 24 h.
 - **Panel admin**: el organizador crea rifas, marca números como *vendido* (*pagado* o *debe* con fecha) y consulta el historial.
-- **Loterías**: resultados por scraping para determinar el número ganador.
+- **Loterías**: resultados de Gane (API/scraping) para anunciar el ganador. La plataforma no hace sorteos ni capta dinero.
 
 > Estado: **planificación**. Aún no hay código. Ver [`docs/PLAN.md`](docs/PLAN.md).
 
