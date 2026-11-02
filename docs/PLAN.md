@@ -62,16 +62,16 @@ El **código de apartado** permite al admin buscar el apartado rápido en el pan
 Objetivo: obtener resultados oficiales de loterías/sorteos, vincularlos a una rifa y **anunciar** el ganador. Nosotros no hacemos el sorteo.
 
 ### Fuentes
-- **Prioridad**: Gane (gane.com.co) y sus APIs. Leo trabajó en Gane y conoce los datos; antes de integrar, **confirmar por escrito que el uso de esas APIs es permitido** y usar solo endpoints públicos/autorizados (nunca credenciales ni accesos internos).
+- **Prioridad**: Gane (gane.com.co). Hallazgos y endpoints en [`GANE-API.md`](GANE-API.md). Leo trabajó en Gane y conoce los datos; antes de integrar, **confirmar por escrito que el uso de esas APIs es permitido** y usar solo endpoints públicos/autorizados (nunca credenciales ni accesos internos).
 - Si no hay API: scraping de la página oficial, citando siempre la fuente.
 - Entrada manual de respaldo (marcada como manual).
 
 ### Loterías/sorteos iniciales (Fase 4)
-1. **Chontico**
-2. **Dorado Noche**
+1. **Chontico** (Noche; los domingos/festivos cambia a *Festivo Noche*)
+2. **Dorado Noche** (los domingos/festivos cambia a *Dorado Festivo*)
 3. **Lotería del Valle**
 
-(Confirmar para cada uno la fuente y el formato de resultado: número principal, serie, hora.)
+Fuente: endpoint público de Gane (`/consultar?fecha_especifica=`), resultado de 4 cifras + serie. El adaptador resuelve el código de sorteo según la fecha (ver `GANE-API.md`).
 
 ### Diseño
 - **Adaptador por fuente**: `fetch` + `parse` → resultado normalizado. Si cambia una API o web, solo se arregla ese adaptador.
@@ -92,7 +92,7 @@ Ejemplo: 1.º lugar = **últimas 2 cifras** del resultado; 2.º lugar = **primer
 Los números de la rifa **empiezan en 00** y se muestran con ceros a la izquierda (ancho = cifras de `total_numbers - 1`; 100 números → `00–99`; 10 000 números → `0000–9999`). **Máximo 4 cifras** por número..
 Al publicarse el resultado, el sistema calcula los números ganadores por premio, y el admin los **confirma y anuncia**.
 
-**Sin ganador** (el número no existe, está `activo` o no coincide): el premio pasa a `reprogramado` y se **vuelve a evaluar con el próximo sorteo** de la lotería, en la fecha que ingrese el admin. Cada intento queda en el historial.
+**Sin ganador**: el premio pasa a `reprogramado` y se **vuelve a evaluar con el próximo sorteo** de la lotería, en la fecha que ingrese el admin. Cada intento queda en el historial. El selector de fecha **solo habilita los días en que esa lotería sortea** (calendario derivado del histórico de Gane).
 
 ### Riesgos
 - Términos de uso de cada fuente (ver Fuentes).
@@ -171,6 +171,8 @@ rifas/
 | Deuda | `vendido` con `debe` + fecha de pago; basta con un **listado** (sin recordatorios) |
 | Rifas | Una activa hoy; arquitectura multi-tenant |
 | Números | 10 a 10 000 (máx. **4 cifras**, `0000–9999`), **empiezan en 0** con ceros a la izquierda |
+| Lógica de premios | **B: terminaciones de 1–4 cifras** (primeras o últimas). Cada coincidencia es un premio entregado. Aproximaciones quedan para más adelante |
+| Admin | `turifa.capitalfinaura.com/admin` |
 | Ganador por premio | Un solo número por premio; si coinciden varios, se entregan varios premios (cada uno es un premio) |
 | Sorteo sin ganador | Se vuelve a ejecutar con el **próximo sorteo**, con la fecha que ingrese el admin; cada intento queda en historial |
 | Sorteos | No los hacemos ni captamos dinero; anunciamos ganadores con resultados de terceros |
@@ -183,15 +185,8 @@ rifas/
 | Infra | Cloudflare |
 
 ## 13. Preguntas abiertas
-1. **Lógica de premios** (pendiente de elegir, ver opciones abajo).
-2. **Número ganador sin vender**: si el número ganador está `activo` (nadie lo compró), ¿el premio se reprograma igual que si no existiera, o queda desierto?
-3. Detalle de la **reprogramación** (la respuesta quedó cortada): ¿la fecha del próximo sorteo la ingresa el admin de la rifa en cada intento? ¿Hay un máximo de reintentos?
-4. ¿El admin va en `turifa.capitalfinaura.com/admin` o en un subdominio aparte?
-5. **Gane**: ¿qué API/endpoints concretos usaremos y tienes autorización por escrito?
-6. ¿Ya cuentas con el permiso/autorización para tus rifas? (quien organiza la rifa sí lo necesita)
-
-### Opciones para la lógica de premios
-- **A. Cifras = ancho del número** (1 ganador exacto por premio). Más simple: en una rifa 0000–9999 se compara el número completo; el premio solo elige `first`/`last` si el resultado tiene más cifras.
-- **B. Terminaciones de 1–4 cifras** (como las loterías colombianas): un premio por terminación y pueden coincidir varios números; cada coincidencia entrega un premio (lo que describiste).
-- **C. Aproximaciones**: premio al número anterior/siguiente del ganador, además del exacto.
-*Recomendación*: empezar con **B** (cubre A y tu regla de varios ganadores) y dejar C para después.
+1. **Número ganador sin vender** (`activo`): ¿ese premio se reprograma al próximo sorteo (propuesta) o queda desierto?
+2. **Máximo de reintentos** de un premio reprogramado (¿ilimitado, o p. ej. 3?).
+3. **Gane**: confirmar por escrito el permiso para consumir sus endpoints (ver `GANE-API.md`).
+4. ¿Ya cuentas con el permiso/autorización para tus rifas? (quien organiza la rifa sí lo necesita)
+5. Las variantes de domingo/festivo (*Chontico Festivo Noche*, *Dorado Festivo*): ¿cuentan automáticamente como "el mismo juego"? (propuesta: sí)

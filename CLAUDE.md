@@ -17,3 +17,4 @@ App web low cost (microSaaS a futuro, multi-tenant) para gestionar números de r
 - Un premio = un número ganador; si coinciden varios, son varios premios. Sin ganador: se reevalúa con el próximo sorteo (fecha del admin), con historial de intentos.
 - WhatsApp: `https://wa.me/<tel sin +>?text=<mensaje url-encoded>`; el único parámetro es `text`.
 - Dominio: turifa.capitalfinaura.com (Cloudflare).
+- Resultados: endpoints públicos de Gane documentados en docs/GANE-API.md. Nunca usar ni guardar tokens ajenos. Lógica de premios B (terminaciones 1–4 cifras). Fechas de reprogramación solo en días en que la lotería sortea.
