@@ -229,8 +229,24 @@ describe("flujo de administración", () => {
     expect((await c.call("PATCH", "/organization", { whatsappPhone: "573001112233" })).status).toBe(
       200,
     );
-    const pub = await app.request("/api/v1/public/finaura/navidad", {}, env);
-    expect(pub.status).toBe(404); // cerrada: ya no es pública
+    // cerrada: sigue visible en solo lectura (para ver ganadores), pero ya no se puede apartar
+    const closed = (await (
+      await app.request("/api/v1/public/finaura/navidad", {}, env)
+    ).json()) as {
+      raffle: { status: string };
+    };
+    expect(closed.raffle.status).toBe("cerrada");
+    const blocked = await app.request(
+      "/api/v1/public/finaura/navidad/reservations",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ numbers: [1] }),
+      },
+      env,
+    );
+    expect(blocked.status).toBe(409);
+    expect(await blocked.json()).toMatchObject({ error: { code: "raffle_closed" } });
     await c.call("PATCH", `/raffles/${raffle.id}`, { status: "activa" });
     const pub2 = (await (await app.request("/api/v1/public/finaura/navidad", {}, env)).json()) as {
       organization: { whatsappPhone: string };

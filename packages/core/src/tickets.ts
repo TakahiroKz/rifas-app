@@ -31,16 +31,14 @@ export interface ReservationResult {
   reservedUntil: string;
 }
 
-async function findActiveRaffle(
+/** Rifas visibles al público: activas y cerradas (estas últimas en solo lectura, para ver los ganadores). */
+async function findPublicRaffle(
   deps: Deps,
   orgSlug: string,
   raffleSlug: string,
 ): Promise<Result<{ organization: Organization; raffle: Raffle }>> {
   const found = await deps.raffles.findPublic(orgSlug, raffleSlug);
-  if (!found) return fail("not_found", "Rifa no encontrada");
-  if (found.raffle.status !== "activa") {
-    return fail("raffle_not_active", "La rifa no está activa");
-  }
+  if (!found || found.raffle.status === "borrador") return fail("not_found", "Rifa no encontrada");
   return ok(found);
 }
 
@@ -48,14 +46,14 @@ export async function getPublicRaffle(
   deps: Deps,
   input: { orgSlug: string; raffleSlug: string },
 ): Promise<Result<{ organization: Organization; raffle: Raffle }>> {
-  return findActiveRaffle(deps, input.orgSlug, input.raffleSlug);
+  return findPublicRaffle(deps, input.orgSlug, input.raffleSlug);
 }
 
 export async function listPublicTickets(
   deps: Deps,
   input: { orgSlug: string; raffleSlug: string },
 ): Promise<Result<PublicTicket[]>> {
-  const found = await findActiveRaffle(deps, input.orgSlug, input.raffleSlug);
+  const found = await findPublicRaffle(deps, input.orgSlug, input.raffleSlug);
   if (!found.ok) return found;
   const now = deps.clock.now().toISOString();
   return ok(await deps.tickets.listPublic(found.value.raffle.id, now));
@@ -86,9 +84,10 @@ export async function reserveTickets(
   deps: Deps,
   input: { orgSlug: string; raffleSlug: string; numbers: unknown; clientId: string },
 ): Promise<Result<ReservationResult>> {
-  const found = await findActiveRaffle(deps, input.orgSlug, input.raffleSlug);
+  const found = await findPublicRaffle(deps, input.orgSlug, input.raffleSlug);
   if (!found.ok) return found;
   const { raffle } = found.value;
+  if (raffle.status !== "activa") return fail("raffle_closed", "Esta rifa ya está cerrada");
 
   const parsed = parseNumbers(input.numbers, raffle.totalNumbers);
   if (!parsed.ok) return parsed;

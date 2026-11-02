@@ -1,19 +1,33 @@
 import {
+  type AdminPrize,
   type AdminRaffle,
   type AdminTicket,
+  adminPrizesResponseSchema,
   adminRaffleListSchema,
   adminRaffleSchema,
   adminTicketsResponseSchema,
+  type CreatePrizeRequest,
   type CreateRaffleRequest,
+  calendarResponseSchema,
   errorResponseSchema,
+  fetchResultResponseSchema,
   historyResponseSchema,
+  type LotteriesResponse,
+  lotteriesResponseSchema,
   type PaymentInput,
+  type Proposal,
+  proposalSchema,
   type ReservationLookup,
+  type ResolveResponse,
+  type ResultLookup,
   reservationLookupSchema,
+  resolveResponseSchema,
+  resultLookupSchema,
   type SessionResponse,
   sessionResponseSchema,
   type TicketEventDto,
   type UpdateOrganizationRequest,
+  type UpdatePrizeRequest,
   type UpdateRaffleRequest,
 } from "@rifas/contracts";
 import type { z } from "zod";
@@ -143,6 +157,60 @@ export const api = {
     request("GET", `/raffles/${enc(id)}/reservations/${enc(code.trim())}`, {
       schema: reservationLookupSchema,
     }),
+  // ───────────── Loterías y premios ─────────────
+  listLotteries: (): Promise<LotteriesResponse> =>
+    request("GET", "/lotteries", { schema: lotteriesResponseSchema }),
+  getCalendar: async (lotteryId: string, from?: string): Promise<string[]> =>
+    (
+      await request(
+        "GET",
+        `/lotteries/${enc(lotteryId)}/calendar${from ? `?from=${enc(from)}` : ""}`,
+        {
+          schema: calendarResponseSchema,
+        },
+      )
+    ).days,
+  getResult: async (lotteryId: string, date: string): Promise<ResultLookup["result"]> =>
+    (
+      await request("GET", `/lotteries/${enc(lotteryId)}/results/${enc(date)}`, {
+        schema: resultLookupSchema,
+      })
+    ).result,
+  enterResult: (lotteryId: string, date: string, number: string) =>
+    request("PUT", `/lotteries/${enc(lotteryId)}/results/${enc(date)}`, {
+      body: { number },
+      schema: resultLookupSchema,
+    }),
+  fetchResult: (lotteryId: string, date: string) =>
+    request("POST", `/lotteries/${enc(lotteryId)}/results/${enc(date)}/fetch`, {
+      schema: fetchResultResponseSchema,
+    }),
+  listPrizes: async (raffleId: string): Promise<AdminPrize[]> =>
+    (
+      await request("GET", `/raffles/${enc(raffleId)}/prizes`, {
+        schema: adminPrizesResponseSchema,
+      })
+    ).prizes,
+  createPrize: (raffleId: string, body: CreatePrizeRequest) =>
+    request("POST", `/raffles/${enc(raffleId)}/prizes`, { body }),
+  updatePrize: (raffleId: string, prizeId: string, body: UpdatePrizeRequest) =>
+    request("PATCH", `/raffles/${enc(raffleId)}/prizes/${enc(prizeId)}`, { body }),
+  deletePrize: (raffleId: string, prizeId: string) =>
+    request("DELETE", `/raffles/${enc(raffleId)}/prizes/${enc(prizeId)}`),
+  getProposal: (raffleId: string, prizeId: string): Promise<Proposal> =>
+    request("GET", `/raffles/${enc(raffleId)}/prizes/${enc(prizeId)}/proposal`, {
+      schema: proposalSchema,
+    }),
+  resolvePrize: (
+    raffleId: string,
+    prizeId: string,
+    nextDrawDate?: string,
+  ): Promise<ResolveResponse> =>
+    request("POST", `/raffles/${enc(raffleId)}/prizes/${enc(prizeId)}/resolve`, {
+      body: nextDrawDate ? { nextDrawDate } : {},
+      schema: resolveResponseSchema,
+    }),
+
   sellReservation: (id: string, code: string, body: { payment: PaymentInput; buyer?: Buyer }) =>
     request("POST", `/raffles/${enc(id)}/reservations/${enc(code.trim())}/sale`, { body }),
 };

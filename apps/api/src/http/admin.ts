@@ -31,8 +31,9 @@ import {
 import { Hono } from "hono";
 import type { z } from "zod";
 import { type AdminEnv, forbiddenOrigin, requireAuth, sameOrigin } from "./admin-auth";
+import { prizeRoutes } from "./admin-prizes";
 import { clearSessionCookie, readSessionCookie, writeSessionCookie } from "./cookies";
-import { toHttpError } from "./errors";
+import { type HttpStatus, toHttpError } from "./errors";
 
 export const adminRoutes = new Hono<AdminEnv>();
 
@@ -114,6 +115,7 @@ adminRoutes.post("/logout", async (c) => {
 // ───────────── Todo lo demás exige sesión ─────────────
 
 adminRoutes.use("/*", requireAuth);
+adminRoutes.route("/", prizeRoutes);
 
 adminRoutes.get("/session", (c) => {
   const { user, organization, csrfToken } = c.get("auth");
@@ -135,7 +137,7 @@ adminRoutes.patch("/organization", async (c) => {
 });
 
 function fail(
-  c: { json: (b: unknown, s: 400 | 401 | 404 | 409 | 429) => Response },
+  c: { json: (b: unknown, s: HttpStatus) => Response },
   result: Extract<Result<unknown>, { ok: false }>,
 ) {
   const { status, body: err } = toHttpError(result.error);

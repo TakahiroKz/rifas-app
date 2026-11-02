@@ -16,6 +16,8 @@ export type Env = {
   TURNSTILE_SITE_KEY?: string;
   /** Límite de tasa de Cloudflare por IP (opcional). */
   RESERVE_LIMITER?: RateLimit;
+  /** "true" activa la consulta automática de resultados a Gane. Requiere su autorización por escrito. */
+  LOTTERY_SYNC_ENABLED?: string;
 };
 
 export type AppEnv = {
@@ -36,7 +38,7 @@ export function createApp(options: AppOptions = {}) {
   app.use("*", securityHeaders);
 
   app.use("/api/*", async (c, next) => {
-    c.set("deps", createDeps(c.env.DB, options.overrides));
+    c.set("deps", createDeps(c.env, options.overrides));
     c.set("turnstileFetch", options.turnstileFetch);
     await next();
   });

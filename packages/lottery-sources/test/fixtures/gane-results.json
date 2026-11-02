@@ -1,0 +1,182 @@
+[
+  {
+    "date": "2026-10-03",
+    "response": {
+      "exito": true,
+      "total_registros": 2,
+      "fecha_inicio": "2026-10-03",
+      "fecha_fin": "2026-10-03",
+      "tiempo_ejecucion_segundos": 4.09,
+      "resultados": [
+        {
+          "CODIGO": 89,
+          "FECHA_SORTEO": "2026-10-03T00:00:00",
+          "RESULTADO": "2094",
+          "HORA": "21:50:00",
+          "SERIE_RESULTADO": "--6",
+          "NUMERO_SORTEO": 715,
+          "NOMBRE": "CHONTICO NOCHE SABADO",
+          "NOMBRE_CORTO": "CHNSA",
+          "HORA_FINAL_VENTA": "21:50:00",
+          "HORA_REAL_SORTEO": "21:50:00"
+        },
+        {
+          "CODIGO": 46,
+          "FECHA_SORTEO": "2026-10-03T00:00:00",
+          "RESULTADO": "2016",
+          "HORA": "21:50:00",
+          "SERIE_RESULTADO": "--6",
+          "NUMERO_SORTEO": 866,
+          "NOMBRE": "DORADO NOCHE",
+          "NOMBRE_CORTO": "DORNO",
+          "HORA_FINAL_VENTA": "21:50:00",
+          "HORA_REAL_SORTEO": "21:50:00"
+        }
+      ]
+    }
+  },
+  {
+    "date": "2026-10-04",
+    "response": {
+      "exito": true,
+      "total_registros": 3,
+      "fecha_inicio": "2026-10-04",
+      "fecha_fin": "2026-10-04",
+      "tiempo_ejecucion_segundos": 0.34,
+      "resultados": [
+        {
+          "CODIGO": 99,
+          "FECHA_SORTEO": "2026-10-04T00:00:00",
+          "RESULTADO": "6288",
+          "HORA": "12:50:00",
+          "SERIE_RESULTADO": "--6",
+          "NUMERO_SORTEO": 668,
+          "NOMBRE": "CHONTICO FESTIVO DIA",
+          "NOMBRE_CORTO": "CHDFE",
+          "HORA_FINAL_VENTA": "12:50:00",
+          "HORA_REAL_SORTEO": "12:50:00"
+        },
+        {
+          "CODIGO": 65,
+          "FECHA_SORTEO": "2026-10-04T00:00:00",
+          "RESULTADO": "0712",
+          "HORA": "18:50:00",
+          "SERIE_RESULTADO": "--9",
+          "NUMERO_SORTEO": 946,
+          "NOMBRE": "DORADO FESTIVO",
+          "NOMBRE_CORTO": "DONFE",
+          "HORA_FINAL_VENTA": "18:50:00",
+          "HORA_REAL_SORTEO": "18:50:00"
+        },
+        {
+          "CODIGO": 63,
+          "FECHA_SORTEO": "2026-10-04T00:00:00",
+          "RESULTADO": "6998",
+          "HORA": "19:50:00",
+          "SERIE_RESULTADO": "--8",
+          "NUMERO_SORTEO": 959,
+          "NOMBRE": "CHONTICO FESTIVO NOCHE",
+          "NOMBRE_CORTO": "CHFEN",
+          "HORA_FINAL_VENTA": "19:50:00",
+          "HORA_REAL_SORTEO": "19:50:00"
+        }
+      ]
+    }
+  },
+  {
+    "date": "2026-10-12",
+    "response": {
+      "exito": true,
+      "total_registros": 3,
+      "fecha_inicio": "2026-10-12",
+      "fecha_fin": "2026-10-12",
+      "tiempo_ejecucion_segundos": 0.34,
+      "resultados": [
+        {
+          "CODIGO": 99,
+          "FECHA_SORTEO": "2026-10-12T00:00:00",
+          "RESULTADO": "8448",
+          "HORA": "12:50:00",
+          "SERIE_RESULTADO": "--0",
+          "NUMERO_SORTEO": 670,
+          "NOMBRE": "CHONTICO FESTIVO DIA",
+          "NOMBRE_CORTO": "CHDFE",
+          "HORA_FINAL_VENTA": "12:50:00",
+          "HORA_REAL_SORTEO": "12:50:00"
+        },
+        {
+          "CODIGO": 65,
+          "FECHA_SORTEO": "2026-10-12T00:00:00",
+          "RESULTADO": "0963",
+          "HORA": "18:50:00",
+          "SERIE_RESULTADO": "--0",
+          "NUMERO_SORTEO": 948,
+          "NOMBRE": "DORADO FESTIVO",
+          "NOMBRE_CORTO": "DONFE",
+          "HORA_FINAL_VENTA": "18:50:00",
+          "HORA_REAL_SORTEO": "18:50:00"
+        },
+        {
+          "CODIGO": 63,
+          "FECHA_SORTEO": "2026-10-12T00:00:00",
+          "RESULTADO": "6403",
+          "HORA": "19:50:00",
+          "SERIE_RESULTADO": "--0",
+          "NUMERO_SORTEO": 961,
+          "NOMBRE": "CHONTICO FESTIVO NOCHE",
+          "NOMBRE_CORTO": "CHFEN",
+          "HORA_FINAL_VENTA": "19:50:00",
+          "HORA_REAL_SORTEO": "19:50:00"
+        }
+      ]
+    }
+  },
+  {
+    "date": "2026-10-14",
+    "response": {
+      "exito": true,
+      "total_registros": 3,
+      "fecha_inicio": "2026-10-14",
+      "fecha_fin": "2026-10-14",
+      "tiempo_ejecucion_segundos": 0.34,
+      "resultados": [
+        {
+          "CODIGO": 62,
+          "FECHA_SORTEO": "2026-10-14T00:00:00",
+          "RESULTADO": "9141",
+          "HORA": "18:50:00",
+          "SERIE_RESULTADO": "--2",
+          "NUMERO_SORTEO": 3402,
+          "NOMBRE": "CHONTICO NOCHE",
+          "NOMBRE_CORTO": "CHNOC",
+          "HORA_FINAL_VENTA": "18:50:00",
+          "HORA_REAL_SORTEO": "18:50:00"
+        },
+        {
+          "CODIGO": 46,
+          "FECHA_SORTEO": "2026-10-14T00:00:00",
+          "RESULTADO": "0862",
+          "HORA": "21:50:00",
+          "SERIE_RESULTADO": "--5",
+          "NUMERO_SORTEO": 874,
+          "NOMBRE": "DORADO NOCHE",
+          "NOMBRE_CORTO": "DORNO",
+          "HORA_FINAL_VENTA": "21:50:00",
+          "HORA_REAL_SORTEO": "21:50:00"
+        },
+        {
+          "CODIGO": 17,
+          "FECHA_SORTEO": "2026-10-14T00:00:00",
+          "RESULTADO": "5091",
+          "HORA": "21:50:00",
+          "SERIE_RESULTADO": "--3",
+          "NUMERO_SORTEO": 724,
+          "NOMBRE": "VALLE",
+          "NOMBRE_CORTO": "VALLE",
+          "HORA_FINAL_VENTA": "21:50:00",
+          "HORA_REAL_SORTEO": "21:50:00"
+        }
+      ]
+    }
+  }
+]

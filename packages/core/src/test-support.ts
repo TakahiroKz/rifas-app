@@ -4,17 +4,27 @@ import type {
   AuthRepository,
   Clock,
   CodeGenerator,
+  DrawResultRepository,
   IdGenerator,
+  LotterySource,
   MarkSoldInput,
   OrganizationRepository,
+  PrizeRepository,
   RaffleRepository,
   ReserveInput,
+  ResolveInput,
+  SourceDraw,
   TicketRepository,
   UserWithHash,
 } from "./ports";
 import type {
+  DrawResult,
   Organization,
   PaymentStatus,
+  Prize,
+  PrizeAttempt,
+  PrizeWinner,
+  PublicPrize,
   PublicTicket,
   Raffle,
   Session,
@@ -358,16 +368,176 @@ export class FakeAuth implements AuthRepository {
   }
 }
 
+export class FakePrizes implements PrizeRepository {
+  items: Prize[] = [];
+  attempts: (PrizeAttempt & { orgId: string })[] = [];
+  winners: (PrizeWinner & { orgId: string })[] = [];
+  private nextAttemptId = 1;
+
+  async create(prize: Prize) {
+    if (this.items.some((p) => p.raffleId === prize.raffleId && p.place === prize.place)) {
+      return { ok: false as const, reason: "place_taken" as const };
+    }
+    this.items.push({ ...prize });
+    return { ok: true as const };
+  }
+  async findById(orgId: string, prizeId: string) {
+    const p = this.items.find((x) => x.orgId === orgId && x.id === prizeId);
+    return p ? { ...p } : null;
+  }
+  async listByRaffle(orgId: string, raffleId: string) {
+    return this.items
+      .filter((x) => x.orgId === orgId && x.raffleId === raffleId)
+      .map((p) => ({ ...p }));
+  }
+  async update(orgId: string, prizeId: string, patch: Parameters<PrizeRepository["update"]>[2]) {
+    const p = this.items.find((x) => x.orgId === orgId && x.id === prizeId);
+    if (!p) return false;
+    Object.assign(p, patch);
+    return true;
+  }
+  async delete(orgId: string, prizeId: string) {
+    const i = this.items.findIndex((x) => x.orgId === orgId && x.id === prizeId);
+    if (i < 0) return false;
+    this.items.splice(i, 1);
+    return true;
+  }
+  async listAttempts(orgId: string, prizeId: string) {
+    return this.attempts
+      .filter((a) => a.orgId === orgId && a.prizeId === prizeId)
+      .sort((a, b) => a.attemptNo - b.attemptNo);
+  }
+  async listWinners(orgId: string, prizeId: string) {
+    return this.winners
+      .filter((w) => w.orgId === orgId && w.prizeId === prizeId)
+      .sort((a, b) => a.number - b.number);
+  }
+  async resolve(i: ResolveInput) {
+    const p = this.items.find((x) => x.orgId === i.orgId && x.id === i.prizeId);
+    if (!p || p.status !== "pendiente" || p.drawDate !== i.expectedDrawDate) return false;
+    if (this.attempts.some((a) => a.prizeId === i.prizeId && a.attemptNo === i.attemptNo))
+      return false;
+    const attemptId = this.nextAttemptId++;
+    this.attempts.push({
+      id: attemptId,
+      orgId: i.orgId,
+      prizeId: i.prizeId,
+      attemptNo: i.attemptNo,
+      drawDate: i.expectedDrawDate,
+      resultNumber: i.resultNumber,
+      outcome: i.outcome,
+      createdAt: i.now,
+    });
+    for (const w of i.winners) {
+      this.winners.push({
+        orgId: i.orgId,
+        prizeId: i.prizeId,
+        attemptId,
+        number: w.number,
+        buyerName: w.buyerName,
+        buyerPhone: w.buyerPhone,
+        paymentStatus: w.paymentStatus,
+      });
+    }
+    p.status = i.newStatus;
+    if (i.nextDrawDate) p.drawDate = i.nextDrawDate;
+    return true;
+  }
+  async listPendingDue(day: string) {
+    return this.items
+      .filter((p) => p.status === "pendiente" && p.drawDate <= day)
+      .map((p) => ({ ...p }));
+  }
+  async listPublic(raffleId: string): Promise<PublicPrize[]> {
+    return this.items
+      .filter((p) => p.raffleId === raffleId)
+      .sort((a, b) => a.place - b.place)
+      .map((p) => {
+        const won = this.attempts
+          .filter((a) => a.prizeId === p.id && a.outcome === "ganador")
+          .at(-1);
+        return {
+          place: p.place,
+          description: p.description,
+          lotteryId: p.lotteryId,
+          drawDate: p.drawDate,
+          status: p.status,
+          resultNumber: won?.resultNumber ?? null,
+          winningNumbers: won
+            ? this.winners
+                .filter((w) => w.attemptId === won.id)
+                .map((w) => w.number)
+                .sort((a, b) => a - b)
+            : [],
+        };
+      });
+  }
+}
+
+export class FakeResults implements DrawResultRepository {
+  items: (DrawResult & { raw?: unknown })[] = [];
+  async findOfficial(lotteryId: string, date: string) {
+    return (
+      this.items.find(
+        (r) => r.orgId === null && r.lotteryId === lotteryId && r.drawDate === date,
+      ) ?? null
+    );
+  }
+  async findManual(orgId: string, lotteryId: string, date: string) {
+    return (
+      this.items.find(
+        (r) => r.orgId === orgId && r.lotteryId === lotteryId && r.drawDate === date,
+      ) ?? null
+    );
+  }
+  async saveOfficial(result: DrawResult & { raw: unknown }) {
+    if (await this.findOfficial(result.lotteryId, result.drawDate)) return false;
+    this.items.push(result);
+    return true;
+  }
+  async saveManual(result: DrawResult) {
+    const i = this.items.findIndex(
+      (r) =>
+        r.orgId === result.orgId &&
+        r.lotteryId === result.lotteryId &&
+        r.drawDate === result.drawDate,
+    );
+    if (i >= 0) this.items.splice(i, 1);
+    this.items.push(result);
+  }
+}
+
+export class FakeSource implements LotterySource {
+  enabled = true;
+  /** Resultados que "publica" la fuente, por fecha. */
+  data = new Map<string, SourceDraw[]>();
+  failWith: Error | null = null;
+  calls: string[] = [];
+  async fetchDraws(date: string) {
+    this.calls.push(date);
+    if (this.failWith) throw this.failWith;
+    return this.data.get(date) ?? [];
+  }
+  publish(lotteryId: string, drawDate: string, number: string, series = "--1") {
+    const list = this.data.get(drawDate) ?? [];
+    list.push({ lotteryId, drawDate, number, series, sourceRef: "123", raw: { fake: true } });
+    this.data.set(drawDate, list);
+  }
+}
+
 export function createTestDeps(start = new Date("2026-11-02T15:00:00.000Z")) {
   const clock = new FakeClock(start);
   const orgs = new Orgs();
   const raffles = new Raffles(orgs);
   const tickets = new Tickets();
   const auth = new FakeAuth();
+  const prizes = new FakePrizes();
+  const results = new FakeResults();
+  const source = new FakeSource();
   let n = 0;
   const ids: IdGenerator = { uuid: () => `id-${++n}` };
   let c = 0;
   const codes: CodeGenerator = { reservationCode: () => `RF-TEST${++c}` };
-  const deps: Deps = { auth, orgs, raffles, tickets, clock, ids, codes };
-  return { deps, clock, stores: { orgs, raffles, tickets, auth } };
+  const deps: Deps = { auth, prizes, results, source, orgs, raffles, tickets, clock, ids, codes };
+  return { deps, clock, stores: { orgs, raffles, tickets, auth, prizes, results, source } };
 }

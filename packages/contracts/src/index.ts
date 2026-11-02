@@ -36,7 +36,21 @@ export const publicRaffleResponseSchema = z.object({
     numberWidth: z.number().int(),
     ticketPrice: z.number().int().nullable(),
     drawDate: z.string().nullable(),
+    /** `cerrada` = solo lectura: se ven los resultados, ya no se puede apartar. */
+    status: z.enum(["activa", "cerrada"]),
   }),
+  /** Premios y ganadores (solo números; nunca datos de compradores). */
+  prizes: z.array(
+    z.object({
+      place: z.number().int(),
+      description: z.string(),
+      lotteryName: z.string(),
+      drawDate: z.string(),
+      status: z.enum(["pendiente", "anunciado", "finalizado"]),
+      resultNumber: z.string().nullable(),
+      winningNumbers: z.array(z.number().int().nonnegative()),
+    }),
+  ),
   /** Clave pública de Turnstile; null si la verificación no está activa. */
   turnstileSiteKey: z.string().nullable(),
 });
@@ -200,3 +214,130 @@ export const reservationLookupSchema = z.object({
   reservedUntil: z.string().nullable(),
 });
 export type ReservationLookup = z.infer<typeof reservationLookupSchema>;
+
+// ───────────── Loterías y premios (administración) ─────────────
+
+export const lotterySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  country: z.string(),
+  /** 0 = domingo … 6 = sábado */
+  drawWeekdays: z.array(z.number().int()),
+});
+export const lotteriesResponseSchema = z.object({
+  lotteries: z.array(lotterySchema),
+  /** Si la consulta automática de resultados está activada. */
+  syncEnabled: z.boolean(),
+});
+export type LotteriesResponse = z.infer<typeof lotteriesResponseSchema>;
+
+export const calendarResponseSchema = z.object({ days: z.array(z.string()) });
+
+export const resultLookupSchema = z.object({
+  result: z
+    .object({
+      number: z.string(),
+      series: z.string().nullable(),
+      source: z.enum(["gane", "manual"]),
+      drawDate: z.string(),
+    })
+    .nullable(),
+});
+export type ResultLookup = z.infer<typeof resultLookupSchema>;
+
+export const manualResultRequestSchema = z.object({
+  number: z.string(),
+  series: z.string().optional(),
+});
+
+export const fetchResultResponseSchema = z.object({ found: z.boolean() });
+
+const matchTypeSchema = z.enum(["first", "last"]);
+const onNoWinnerSchema = z.enum(["reprogramar", "finalizar"]);
+
+export const adminPrizeSchema = z.object({
+  id: z.string(),
+  place: z.number().int(),
+  description: z.string(),
+  lotteryId: z.string(),
+  lotteryName: z.string(),
+  matchType: matchTypeSchema,
+  digits: z.number().int(),
+  drawDate: z.string(),
+  onNoWinner: onNoWinnerSchema,
+  maxAttempts: z.number().int().nullable(),
+  status: z.enum(["pendiente", "anunciado", "finalizado"]),
+  attempts: z.array(
+    z.object({
+      attemptNo: z.number().int(),
+      drawDate: z.string(),
+      resultNumber: z.string(),
+      outcome: z.enum(["ganador", "sin_ganador"]),
+      createdAt: z.string(),
+    }),
+  ),
+  winners: z.array(
+    z.object({
+      number: z.number().int(),
+      buyerName: z.string().nullable(),
+      buyerPhone: z.string().nullable(),
+      paymentStatus: z.enum(["pagado", "debe"]),
+    }),
+  ),
+});
+export type AdminPrize = z.infer<typeof adminPrizeSchema>;
+export const adminPrizesResponseSchema = z.object({ prizes: z.array(adminPrizeSchema) });
+
+export const createPrizeRequestSchema = z.object({
+  place: z.number().int().optional(),
+  description: z.string(),
+  lotteryId: z.string(),
+  matchType: matchTypeSchema,
+  digits: z.number().int(),
+  drawDate: z.string(),
+  onNoWinner: onNoWinnerSchema,
+  maxAttempts: z.number().int().nullable(),
+});
+export type CreatePrizeRequest = z.infer<typeof createPrizeRequestSchema>;
+
+export const updatePrizeRequestSchema = z.object({
+  description: z.string().optional(),
+  lotteryId: z.string().optional(),
+  matchType: matchTypeSchema.optional(),
+  digits: z.number().int().optional(),
+  drawDate: z.string().optional(),
+  onNoWinner: onNoWinnerSchema.optional(),
+  maxAttempts: z.number().int().nullable().optional(),
+});
+export type UpdatePrizeRequest = z.infer<typeof updatePrizeRequestSchema>;
+
+export const proposalSchema = z.object({
+  prizeId: z.string(),
+  outcome: z.enum(["sin_resultado", "ganador", "sin_ganador"]),
+  result: resultLookupSchema.shape.result,
+  /** Cifras del resultado que cuentan, p. ej. "22". */
+  term: z.string().nullable(),
+  winners: z.array(
+    z.object({
+      number: z.number().int(),
+      buyerName: z.string().nullable(),
+      buyerPhone: z.string().nullable(),
+      paymentStatus: z.enum(["pagado", "debe"]),
+    }),
+  ),
+  /** Números que coinciden pero no están vendidos. */
+  unsoldMatches: z.number().int(),
+  attemptNo: z.number().int(),
+  canReprogram: z.boolean(),
+});
+export type Proposal = z.infer<typeof proposalSchema>;
+
+export const resolveRequestSchema = z.object({ nextDrawDate: z.string().optional() });
+
+export const resolveResponseSchema = z.object({
+  outcome: z.enum(["ganador", "sin_ganador"]),
+  status: z.enum(["pendiente", "anunciado", "finalizado"]),
+  winningNumbers: z.array(z.number().int()),
+  nextDrawDate: z.string().nullable(),
+});
+export type ResolveResponse = z.infer<typeof resolveResponseSchema>;

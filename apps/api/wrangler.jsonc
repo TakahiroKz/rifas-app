@@ -21,14 +21,20 @@
   // Turnstile (anti-bots) al apartar. El secreto NO va aquí: `wrangler secret put TURNSTILE_SECRET`.
   // La clave pública se obtiene al crear el widget en Cloudflare → Turnstile (hostname turifa.capitalfinaura.com).
   // Mientras no esté configurada, apartar responde 503 (falla cerrado).
-  "vars": { "REQUIRE_TURNSTILE": "true", "TURNSTILE_SITE_KEY": "" },
+  "vars": {
+    "REQUIRE_TURNSTILE": "true",
+    "TURNSTILE_SITE_KEY": "",
+    // Consulta automática de resultados a Gane. Déjala en "false" hasta tener su autorización por escrito;
+    // mientras tanto el resultado se ingresa a mano en el panel.
+    "LOTTERY_SYNC_ENABLED": "false"
+  },
 
   // Límite de tasa por IP al apartar: 20 solicitudes por minuto.
   "ratelimits": [
     { "name": "RESERVE_LIMITER", "namespace_id": "1001", "simple": { "limit": 20, "period": 60 } }
   ],
 
-  // Base de datos de producción (ya creada, con las migraciones 0001, 0002 y 0003 aplicadas).
+  // Base de datos de producción (ya creada, con las migraciones 0001 a 0004 aplicadas).
   // En local (dev y pruebas) se usa una base SQLite simulada; el id no se usa.
   // Migraciones futuras: `pnpm exec wrangler d1 migrations apply rifas-db --remote` (desde apps/api).
   "d1_databases": [
@@ -47,7 +53,11 @@
   // ambos se prueban aparte. Los enlaces (bindings) no se heredan, por eso se repite D1.
   "env": {
     "test": {
-      "vars": { "REQUIRE_TURNSTILE": "false", "TURNSTILE_SITE_KEY": "" },
+      "vars": {
+        "REQUIRE_TURNSTILE": "false",
+        "TURNSTILE_SITE_KEY": "",
+        "LOTTERY_SYNC_ENABLED": "false"
+      },
       "d1_databases": [
         {
           "binding": "DB",

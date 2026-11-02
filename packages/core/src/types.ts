@@ -109,3 +109,71 @@ export interface RaffleStats {
 }
 
 export type RaffleWithStats = Raffle & { stats: RaffleStats };
+
+// ───────────── Loterías y premios ─────────────
+
+export type MatchTypeValue = "first" | "last";
+export type PrizeStatus = "pendiente" | "anunciado" | "finalizado";
+export type OnNoWinner = "reprogramar" | "finalizar";
+
+export interface DrawResult {
+  id: string;
+  lotteryId: string;
+  /** AAAA-MM-DD (hora de Colombia) */
+  drawDate: string;
+  /** Siempre 4 cifras, con ceros a la izquierda. */
+  number: string;
+  series: string | null;
+  source: "gane" | "manual";
+  sourceRef: string | null;
+  /** null = oficial; con valor = ingresado a mano por esa organización. */
+  orgId: string | null;
+  fetchedAt: string;
+}
+
+export interface Prize {
+  id: string;
+  orgId: string;
+  raffleId: string;
+  place: number;
+  description: string;
+  lotteryId: string;
+  matchType: MatchTypeValue;
+  digits: number;
+  drawDate: string;
+  onNoWinner: OnNoWinner;
+  /** null = sin límite de intentos. */
+  maxAttempts: number | null;
+  status: PrizeStatus;
+  createdAt: string;
+}
+
+export interface PrizeAttempt {
+  id: number;
+  prizeId: string;
+  attemptNo: number;
+  drawDate: string;
+  resultNumber: string;
+  outcome: "ganador" | "sin_ganador";
+  createdAt: string;
+}
+
+export interface PrizeWinner {
+  prizeId: string;
+  number: number;
+  attemptId: number;
+  buyerName: string | null;
+  buyerPhone: string | null;
+  paymentStatus: PaymentStatus;
+}
+
+/** Vista pública de un premio: sin datos de compradores. */
+export interface PublicPrize {
+  place: number;
+  description: string;
+  lotteryId: string;
+  drawDate: string;
+  status: PrizeStatus;
+  resultNumber: string | null;
+  winningNumbers: number[];
+}

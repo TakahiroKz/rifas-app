@@ -55,7 +55,8 @@ function RaffleView({
   slug: string;
   data: PublicRaffleResponse;
 }) {
-  const { raffle, organization, turnstileSiteKey } = data;
+  const { raffle, organization, turnstileSiteKey, prizes } = data;
+  const closed = raffle.status === "cerrada";
   const width = raffle.numberWidth;
   const label = (n: number) => formatTicket(n, width);
 
@@ -200,135 +201,151 @@ function RaffleView({
       </header>
 
       <main class="mx-auto max-w-3xl space-y-4 px-4 py-5">
-        {done ? (
-          <Success done={done} label={label} onClose={() => setDone(null)} />
-        ) : (
-          <ol class="grid gap-2 text-sm text-slate-600 sm:grid-cols-3">
-            <li>
-              <b class="text-slate-900">1.</b> Elige tus números.
-            </li>
-            <li>
-              <b class="text-slate-900">2.</b> Apártalos: se abre WhatsApp con tu mensaje.
-            </li>
-            <li>
-              <b class="text-slate-900">3.</b> Coordina el pago allí. Tu apartado dura 24 horas.
-            </li>
-          </ol>
-        )}
-
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <ul class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
-            <Key cls="border-slate-300 bg-white">Disponible</Key>
-            <Key cls="border-indigo-600 bg-indigo-600">Elegido</Key>
-            <Key cls="border-amber-400 bg-amber-100">Apartado</Key>
-            <Key cls="border-slate-300 bg-slate-200">Vendido</Key>
-          </ul>
-          <label class="flex items-center gap-2 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              checked={onlyAvailable}
-              onChange={(e) => {
-                setOnlyAvailable((e.target as HTMLInputElement).checked);
-                setPage(0);
-              }}
-            />
-            Solo disponibles
-          </label>
-        </div>
-
-        <div class="flex flex-wrap items-center gap-2">
-          <form onSubmit={goTo} class="flex gap-2">
-            <input
-              class={`${inputClass} w-28`}
-              inputMode="numeric"
-              placeholder="Buscar nº"
-              aria-label="Buscar un número"
-              value={jump}
-              onInput={(e) =>
-                setJump((e.target as HTMLInputElement).value.replace(/\D/g, "").slice(0, width))
-              }
-            />
-            <Button type="submit" variant="secondary">
-              Elegir
-            </Button>
-          </form>
-          <Button variant="secondary" onClick={random}>
-            🎲 Al azar
-          </Button>
-        </div>
-
-        {pages > 1 && (
-          <div class="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              disabled={safePage === 0}
-              onClick={() => setPage(safePage - 1)}
-              aria-label="Anterior"
-            >
-              ←
-            </Button>
-            <select
-              class={`${inputClass} flex-1`}
-              aria-label="Rango de números"
-              value={safePage}
-              onChange={(e) => setPage(Number((e.target as HTMLSelectElement).value))}
-            >
-              {Array.from({ length: pages }, (_, p) => {
-                const from = list[p * PAGE_SIZE];
-                const to = list[Math.min((p + 1) * PAGE_SIZE, list.length) - 1];
-                return (
-                  <option key={p} value={p}>
-                    {from === undefined || to === undefined ? "—" : `${label(from)} – ${label(to)}`}
-                  </option>
-                );
-              })}
-            </select>
-            <Button
-              variant="secondary"
-              disabled={safePage >= pages - 1}
-              onClick={() => setPage(safePage + 1)}
-              aria-label="Siguiente"
-            >
-              →
-            </Button>
-          </div>
-        )}
-
-        {shown.length === 0 && (
-          <p class="rounded-xl bg-white p-6 text-center text-sm text-slate-600 ring-1 ring-slate-200">
-            No quedan números disponibles.
+        {closed && (
+          <p
+            role="status"
+            class="rounded-xl bg-slate-100 p-4 text-center text-sm font-medium text-slate-700"
+          >
+            Esta rifa está cerrada. Ya no se pueden apartar números.
           </p>
         )}
+        <PrizesSection prizes={prizes} label={label} />
 
-        <div class="grid grid-cols-5 gap-1.5 sm:grid-cols-8 md:grid-cols-10">
-          {shown.map((n) => {
-            const status = taken.get(n);
-            const isSel = selected.includes(n);
-            const cls = isSel
-              ? "border-indigo-600 bg-indigo-600 text-white"
-              : status === "apartado"
-                ? "border-amber-400 bg-amber-100 text-amber-900"
-                : status === "vendido"
-                  ? "border-slate-300 bg-slate-200 text-slate-400 line-through"
-                  : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50";
-            const state = isSel ? "elegido" : (status ?? "disponible");
-            return (
-              <button
-                key={n}
-                type="button"
-                data-number={n}
-                data-state={state}
-                disabled={status !== undefined}
-                aria-pressed={isSel}
-                aria-label={`Número ${label(n)}, ${state}`}
-                onClick={() => toggle(n)}
-                class={`rounded-md border py-2 text-sm font-semibold tabular-nums transition-colors disabled:cursor-not-allowed ${cls}`}
-              >
-                {label(n)}
-              </button>
-            );
-          })}
-        </div>
+        {!closed && (
+          <>
+            {done ? (
+              <Success done={done} label={label} onClose={() => setDone(null)} />
+            ) : (
+              <ol class="grid gap-2 text-sm text-slate-600 sm:grid-cols-3">
+                <li>
+                  <b class="text-slate-900">1.</b> Elige tus números.
+                </li>
+                <li>
+                  <b class="text-slate-900">2.</b> Apártalos: se abre WhatsApp con tu mensaje.
+                </li>
+                <li>
+                  <b class="text-slate-900">3.</b> Coordina el pago allí. Tu apartado dura 24 horas.
+                </li>
+              </ol>
+            )}
+
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <ul class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
+                <Key cls="border-slate-300 bg-white">Disponible</Key>
+                <Key cls="border-indigo-600 bg-indigo-600">Elegido</Key>
+                <Key cls="border-amber-400 bg-amber-100">Apartado</Key>
+                <Key cls="border-slate-300 bg-slate-200">Vendido</Key>
+              </ul>
+              <label class="flex items-center gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={onlyAvailable}
+                  onChange={(e) => {
+                    setOnlyAvailable((e.target as HTMLInputElement).checked);
+                    setPage(0);
+                  }}
+                />
+                Solo disponibles
+              </label>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+              <form onSubmit={goTo} class="flex gap-2">
+                <input
+                  class={`${inputClass} w-28`}
+                  inputMode="numeric"
+                  placeholder="Buscar nº"
+                  aria-label="Buscar un número"
+                  value={jump}
+                  onInput={(e) =>
+                    setJump((e.target as HTMLInputElement).value.replace(/\D/g, "").slice(0, width))
+                  }
+                />
+                <Button type="submit" variant="secondary">
+                  Elegir
+                </Button>
+              </form>
+              <Button variant="secondary" onClick={random}>
+                🎲 Al azar
+              </Button>
+            </div>
+
+            {pages > 1 && (
+              <div class="flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  disabled={safePage === 0}
+                  onClick={() => setPage(safePage - 1)}
+                  aria-label="Anterior"
+                >
+                  ←
+                </Button>
+                <select
+                  class={`${inputClass} flex-1`}
+                  aria-label="Rango de números"
+                  value={safePage}
+                  onChange={(e) => setPage(Number((e.target as HTMLSelectElement).value))}
+                >
+                  {Array.from({ length: pages }, (_, p) => {
+                    const from = list[p * PAGE_SIZE];
+                    const to = list[Math.min((p + 1) * PAGE_SIZE, list.length) - 1];
+                    return (
+                      <option key={p} value={p}>
+                        {from === undefined || to === undefined
+                          ? "—"
+                          : `${label(from)} – ${label(to)}`}
+                      </option>
+                    );
+                  })}
+                </select>
+                <Button
+                  variant="secondary"
+                  disabled={safePage >= pages - 1}
+                  onClick={() => setPage(safePage + 1)}
+                  aria-label="Siguiente"
+                >
+                  →
+                </Button>
+              </div>
+            )}
+
+            {shown.length === 0 && (
+              <p class="rounded-xl bg-white p-6 text-center text-sm text-slate-600 ring-1 ring-slate-200">
+                No quedan números disponibles.
+              </p>
+            )}
+
+            <div class="grid grid-cols-5 gap-1.5 sm:grid-cols-8 md:grid-cols-10">
+              {shown.map((n) => {
+                const status = taken.get(n);
+                const isSel = selected.includes(n);
+                const cls = isSel
+                  ? "border-indigo-600 bg-indigo-600 text-white"
+                  : status === "apartado"
+                    ? "border-amber-400 bg-amber-100 text-amber-900"
+                    : status === "vendido"
+                      ? "border-slate-300 bg-slate-200 text-slate-400 line-through"
+                      : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50";
+                const state = isSel ? "elegido" : (status ?? "disponible");
+                return (
+                  <button
+                    key={n}
+                    type="button"
+                    data-number={n}
+                    data-state={state}
+                    disabled={status !== undefined}
+                    aria-pressed={isSel}
+                    aria-label={`Número ${label(n)}, ${state}`}
+                    onClick={() => toggle(n)}
+                    class={`rounded-md border py-2 text-sm font-semibold tabular-nums transition-colors disabled:cursor-not-allowed ${cls}`}
+                  >
+                    {label(n)}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
 
         <p class="pt-4 text-center text-xs text-slate-500">
           Los datos que compartas por WhatsApp se tratan según la{" "}
@@ -339,13 +356,13 @@ function RaffleView({
         </p>
       </main>
 
-      {turnstileSiteKey && (
+      {!closed && turnstileSiteKey && (
         <div class="mx-auto max-w-3xl px-4">
           <TurnstileWidget siteKey={turnstileSiteKey} resetKey={resetKey} onToken={setToken} />
         </div>
       )}
 
-      {selected.length > 0 && (
+      {!closed && selected.length > 0 && (
         <div class="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white p-3 shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
           <div class="mx-auto max-w-3xl space-y-2">
             <ErrorBox message={error} />
@@ -451,6 +468,50 @@ function Success({
           Apartar otros números
         </Button>
       </div>
+    </section>
+  );
+}
+
+function PrizesSection({
+  prizes,
+  label,
+}: {
+  prizes: PublicRaffleResponse["prizes"];
+  label: (n: number) => string;
+}) {
+  if (prizes.length === 0) return null;
+  return (
+    <section aria-label="Premios" class="space-y-2">
+      <h2 class="text-lg font-bold text-slate-900">Premios</h2>
+      <ul class="space-y-2">
+        {prizes.map((p) => (
+          <li
+            key={p.place}
+            class="space-y-1 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200"
+            data-prize={p.place}
+          >
+            <p class="font-semibold text-slate-900">
+              Premio {p.place}: {p.description}
+            </p>
+            {p.status === "pendiente" && (
+              <p class="text-sm text-slate-600">
+                Sorteo: {formatDay(p.drawDate)} · {p.lotteryName}
+              </p>
+            )}
+            {p.status === "anunciado" && (
+              <p class="text-sm text-emerald-800">
+                {p.lotteryName} · {formatDay(p.drawDate)} · resultado{" "}
+                <b class="font-mono">{p.resultNumber}</b>.{" "}
+                {p.winningNumbers.length === 1 ? "Número ganador" : "Números ganadores"}:{" "}
+                <b class="tabular-nums">{p.winningNumbers.map(label).join(", ")}</b> 🏆
+              </p>
+            )}
+            {p.status === "finalizado" && (
+              <p class="text-sm text-slate-600">Terminó sin ganador.</p>
+            )}
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

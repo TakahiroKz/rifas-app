@@ -49,3 +49,32 @@ export const isExpired = (reservedUntil: string | null, now = new Date()): boole
 
 /** plural(1, "vendido", "vendidos") → "vendido"; plural(2, …) → "vendidos". */
 export const plural = (n: number, one: string, many: string): string => (n === 1 ? one : many);
+
+/** "lun 2 nov 2026": fecha AAAA-MM-DD con el día de la semana, sin desfase de zona horaria. */
+export const formatDayLong = (day: string): string => {
+  const [y, m, d] = day.split("-").map(Number) as [number, number, number];
+  return new Intl.DateTimeFormat("es-CO", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(y, m - 1, d)));
+};
+
+/** "Últimas 2 cifras", "Primera cifra"… */
+export const ruleLabel = (matchType: "first" | "last", digits: number): string => {
+  if (matchType === "last") return digits === 1 ? "Última cifra" : `Últimas ${digits} cifras`;
+  return digits === 1 ? "Primera cifra" : `Primeras ${digits} cifras`;
+};
+
+/** Texto de la política cuando no hay ganador. */
+export const policyLabel = (
+  onNoWinner: "reprogramar" | "finalizar",
+  maxAttempts: number | null,
+): string =>
+  onNoWinner === "finalizar"
+    ? "Si no hay ganador, el premio termina"
+    : maxAttempts === null
+      ? "Si no hay ganador, se reprograma sin límite de intentos"
+      : `Si no hay ganador, se reprograma (hasta ${maxAttempts} ${plural(maxAttempts, "intento", "intentos")})`;

@@ -7,7 +7,10 @@ export type ErrorCode =
   | "invalid_state"
   | "unauthorized"
   | "too_many_attempts"
-  | "too_many_reservations";
+  | "too_many_reservations"
+  | "raffle_closed"
+  | "conflict"
+  | "source_unavailable";
 
 export interface DomainError {
   code: ErrorCode;

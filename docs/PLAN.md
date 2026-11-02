@@ -1,6 +1,6 @@
 # Plan: Plataforma de rifas (microSaaS)
 
-> Estado: Fase 3 completada. Última actualización: 2026-11-02. Repo: `TakahiroKz/rifas-app`.
+> Estado: Fase 4 completada. Última actualización: 2026-11-02. Repo: `TakahiroKz/rifas-app`.
 
 ## 1. Visión
 Plataforma para gestionar **los números de una rifa** (sin pagos en línea) y, además, **consultar resultados de loterías y sorteos** (Colombia y otros países) para anunciar ganadores.
@@ -92,7 +92,7 @@ Ejemplo: 1.º lugar = **últimas 2 cifras** del resultado; 2.º lugar = **primer
 Los números de la rifa **empiezan en 00** y se muestran con ceros a la izquierda (ancho = cifras de `total_numbers - 1`; 100 números → `00–99`; 10 000 números → `0000–9999`). **Máximo 4 cifras** por número..
 Al publicarse el resultado, el sistema calcula los números ganadores por premio, y el admin los **confirma y anuncia**.
 
-**Sin ganador** (incluye que el número ganador no se haya vendido): según la política del premio que defina el admin, el premio **finaliza** o pasa a `reprogramado` y se **vuelve a evaluar con el próximo sorteo** de la lotería, en la fecha que ingrese el admin, hasta el máximo de reintentos que haya fijado (o sin límite). Cada intento queda en el historial. El selector de fecha **solo habilita los días en que esa lotería sortea** (calendario derivado del histórico de Gane).
+**Sin ganador** (incluye que el número ganador no se haya vendido): según la política del premio que defina el admin, el premio **finaliza** o se **reprograma** (sigue `pendiente` con la nueva fecha) y se **vuelve a evaluar con el próximo sorteo** de la lotería, en la fecha que ingrese el admin, hasta el máximo de reintentos que haya fijado (o sin límite). Cada intento queda en el historial. El selector de fecha **solo habilita los días en que esa lotería sortea** (calendario derivado del histórico de Gane).
 
 ### Riesgos
 - Términos de uso de cada fuente (ver Fuentes).
@@ -108,13 +108,13 @@ Al publicarse el resultado, el sistema calcula los números ganadores por premio
 - **organizations**: id, name, slug, whatsapp_phone (en config, formato `57XXXXXXXXXX`), created_at
 - **memberships**: user_id, org_id, role (`owner`/`admin`)
 - **raffles**: id, org_id, slug, title, description, total_numbers (10–10000), number_start (siempre 0), number_width, ticket_price, status (`borrador`/`activa`/`cerrada`), draw_date, created_at
-- **raffle_prizes**: id, raffle_id, place, description, lottery_id, match_type (`last`/`first`), digits (1–4), draw_date (la fija el admin y puede reprogramarla), on_no_winner (`reprogramar`/`finalizar`), max_attempts (null = sin límite), status (`pendiente`/`anunciado`/`reprogramado`/`finalizado`)
-- **prize_draw_attempts**: id, raffle_prize_id, draw_date, draw_result_id, outcome (`ganador`/`sin_ganador`), created_at — historial de intentos
-- **raffle_winners**: raffle_prize_id, number, draw_result_id, confirmed_at
+- **raffle_prizes**: id, org_id, raffle_id, place, description, lottery_id, match_type (`last`/`first`), digits (1 a ancho del número), draw_date (la fija el admin y se mueve al reprogramar), on_no_winner (`reprogramar`/`finalizar`), max_attempts (null = sin límite), status (`pendiente`/`anunciado`/`finalizado`)
+- **prize_draw_attempts**: id, org_id, prize_id, attempt_no, draw_date, result_number, outcome (`ganador`/`sin_ganador`), created_at — historial de intentos
+- **prize_winners**: prize_id, number, attempt_id, org_id, buyer_name, buyer_phone, payment_status (copia al confirmar), created_at — un premio por número vendido que coincide
 - **tickets** (modelo disperso: solo filas `apartado`/`vendido`; `activo` = sin fila): raffle_id, number, org_id, status (`apartado`/`vendido`), payment_status (`pagado`/`debe`), due_date, buyer_name, buyer_phone, note, reservation_code, reserved_at, reserved_until, sold_at, updated_at — PK (raffle_id, number)
 - **ticket_events**: id, org_id, raffle_id, number, action (`reserve`/`expire`/`sell`/`update_payment`/`release`), from_status, to_status, actor (`public`/`admin`/`system`), reservation_code, meta, at — historial
-- **lotteries**: id, country, name, schedule, source_adapter (Gane u otra)
-- **draw_results**: id, lottery_id, draw_date, winning_number, series, source_url, raw, fetched_at, is_manual
+- **Juegos de lotería**: catálogo en código (`packages/core/src/lotteries.ts`): id, nombre, días de sorteo y hora de publicación.
+- **draw_results**: id, lottery_id, draw_date, number (4 cifras), series, source (`gane`/`manual`), source_ref, org_id (null = oficial; con valor = manual de esa organización), raw, fetched_at
 - Toda consulta se filtra por `org_id` (aislamiento entre organizadores).
 
 ### Tamaño: rifas de 10 a 10 000 números (máx. 4 cifras)
@@ -148,7 +148,7 @@ Sí se pueden usar **varios dominios**: Cloudflare Pages permite agregar varios 
 2. **Fase 1 – Núcleo** ✅: esquema D1 multi-tenant, dominio y casos de uso, reserva atómica, expiración a 24 h, historial y API pública, con 51 pruebas (incluye concurrencia y aislamiento entre organizaciones).
 3. **Fase 2 – Admin** ✅: login con sesiones seguras, CRUD de rifas, tablero de números, vender como pagado o debe con fecha, venta por código de apartado, listado de deudas, historial y ajustes. 88 pruebas automáticas más verificación de punta a punta en un navegador real.
 4. **Fase 3 – Público** ✅: página pública, selección, apartado + WhatsApp con código, política de privacidad (preliminar), Turnstile, límite de tasa, tope por cliente y encabezados de seguridad. 114 pruebas automáticas + flujo completo verificado en navegador.
-5. **Fase 4 – Loterías**: modelo de resultados, 2–3 adaptadores de Colombia, entrada manual, vinculación a rifa y sugerencia de ganador.
+5. **Fase 4 – Loterías** ✅: catálogo de juegos con calendario (Chontico Noche, Dorado Noche, Lotería del Valle), adaptador de Gane con muestras reales, resultados oficiales y manuales, premios por terminación (1 a ancho cifras, primeras/últimas), propuesta + confirmación atómica, reprogramación con historial, Cron de resultados y ganadores en la página pública. 168 pruebas automáticas + flujo completo verificado en navegador.
 6. **Fase 5 – Pulido**: estadísticas, CSV, alertas de deuda vencida, despliegue y dominio.
 7. **Fase 6 – SaaS**: registro abierto, organizaciones, límites/planes, dominios por cliente, términos y condiciones.
 
@@ -188,7 +188,7 @@ Pendiente de Leo / de revisión legal antes de abrir `turifa.capitalfinaura.com`
 - [ ] **Turnstile**: crear el widget (Cloudflare → Turnstile, hostname `turifa.capitalfinaura.com`), poner la clave pública en `TURNSTILE_SITE_KEY` (`wrangler.jsonc`) y el secreto con `wrangler secret put TURNSTILE_SECRET`.
 - [ ] **Política de privacidad**: revisión de un abogado; luego poner `PRIVACY_POLICY_REVIEWED = true` (`apps/web/src/pages/Privacy.tsx`) para quitar el aviso de «versión preliminar».
 - [ ] **Permiso de las rifas** ante la autoridad competente (Ley 643 de 2001) — a cargo del organizador.
-- [ ] **Gane**: autorización por escrito (solo para la Fase 4).
-- [ ] **Despliegue**: agregar secretos `CLOUDFLARE_API_TOKEN` y `CLOUDFLARE_ACCOUNT_ID` en GitHub; activar la ruta `turifa.capitalfinaura.com` en `wrangler.jsonc`; aplicar migraciones al remoto; crear el administrador con `pnpm admin:create ... --remote`.
+- [ ] **Gane**: autorización por escrito. Mientras no la tengas, `LOTTERY_SYNC_ENABLED` queda en `"false"` y el resultado se ingresa a mano en el panel. Al tenerla: ponerla en `"true"` en `wrangler.jsonc`.
+- [ ] **Despliegue**: aplicar al remoto las migraciones nuevas (la 0004 ya está en la base de producción); agregar secretos `CLOUDFLARE_API_TOKEN` y `CLOUDFLARE_ACCOUNT_ID` en GitHub; activar la ruta `turifa.capitalfinaura.com` en `wrangler.jsonc`; aplicar migraciones al remoto; crear el administrador con `pnpm admin:create ... --remote`.
 - [ ] **R2** habilitado (respaldos, Fase 5).
 - [ ] Regla de límite de tasa adicional en la zona (WAF) como segunda capa — opcional.

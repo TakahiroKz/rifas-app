@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   formatDay,
+  formatDayLong,
   formatMoney,
   formatTicket,
   isExpired,
   plural,
+  policyLabel,
+  ruleLabel,
   slugify,
   todayBogota,
 } from "./format";
@@ -41,5 +44,20 @@ describe("format", () => {
     expect(plural(1, "vendido", "vendidos")).toBe("vendido");
     expect(plural(0, "vendido", "vendidos")).toBe("vendidos");
     expect(plural(3, "vendido", "vendidos")).toBe("vendidos");
+  });
+  it("regla de premio y política", () => {
+    expect(ruleLabel("last", 2)).toBe("Últimas 2 cifras");
+    expect(ruleLabel("last", 1)).toBe("Última cifra");
+    expect(ruleLabel("first", 3)).toBe("Primeras 3 cifras");
+    expect(ruleLabel("first", 1)).toBe("Primera cifra");
+    expect(policyLabel("finalizar", null)).toMatch(/termina/);
+    expect(policyLabel("reprogramar", null)).toMatch(/sin límite/);
+    expect(policyLabel("reprogramar", 1)).toMatch(/1 intento\)/);
+    expect(policyLabel("reprogramar", 3)).toMatch(/3 intentos/);
+  });
+  it("día con día de la semana, sin correrse de zona horaria", () => {
+    expect(formatDayLong("2026-11-04")).toMatch(/mié/);
+    expect(formatDayLong("2026-11-04")).toMatch(/4/);
+    expect(formatDayLong("2026-11-02")).toMatch(/lun/);
   });
 });

@@ -152,10 +152,10 @@ describe("apartar (zona pública)", () => {
     expect(r.ok ? null : r.error.code).toBe("invalid_input");
   });
 
-  it("no aparta en rifas inactivas ni inexistentes", async () => {
+  it("un borrador o una rifa inexistente no existen para el público", async () => {
     const { deps } = await setup(100, "borrador");
     const r1 = await reserveTickets(deps, { ...pub, clientId: "c1", numbers: [1] });
-    expect(r1.ok ? null : r1.error.code).toBe("raffle_not_active");
+    expect(r1.ok ? null : r1.error.code).toBe("not_found");
     const r2 = await reserveTickets(deps, {
       orgSlug: "finaura",
       raffleSlug: "nope",
@@ -163,8 +163,19 @@ describe("apartar (zona pública)", () => {
       numbers: [1],
     });
     expect(r2.ok ? null : r2.error.code).toBe("not_found");
-    const r3 = await getPublicRaffle(deps, pub);
-    expect(r3.ok).toBe(false);
+    expect((await getPublicRaffle(deps, pub)).ok).toBe(false);
+    expect((await listPublicTickets(deps, pub)).ok).toBe(false);
+  });
+
+  it("una rifa cerrada se ve en solo lectura pero ya no se puede apartar", async () => {
+    const { deps, org, raffle } = await setup();
+    await reserveTickets(deps, { ...pub, clientId: "c1", numbers: [5] });
+    await setRaffleStatus(deps, { orgId: org.id, raffleId: raffle.id, status: "cerrada" });
+    expect((await getPublicRaffle(deps, pub)).ok).toBe(true);
+    const tickets = await listPublicTickets(deps, pub);
+    expect(tickets.ok && tickets.value.map((t) => t.number)).toEqual([5]);
+    const r = await reserveTickets(deps, { ...pub, clientId: "c1", numbers: [6] });
+    expect(r.ok ? null : r.error.code).toBe("raffle_closed");
   });
 
   it("un apartado vencido vuelve a estar disponible aunque el cron no haya corrido", async () => {

@@ -2,17 +2,25 @@ import type {
   AuthRepository,
   Clock,
   CodeGenerator,
+  DrawResult,
+  DrawResultRepository,
   IdGenerator,
   MarkSoldInput,
   Organization,
   OrganizationRepository,
   PaymentStatus,
+  Prize,
+  PrizeAttempt,
+  PrizeRepository,
+  PrizeWinner,
+  PublicPrize,
   PublicTicket,
   Raffle,
   RaffleRepository,
   RaffleStatus,
   ReserveInput,
   ReserveOutcome,
+  ResolveInput,
   Session,
   TicketEvent,
   TicketRecord,
@@ -698,5 +706,376 @@ export class D1AuthRepository implements AuthRepository {
 
   async clearFailedLogins(email: string) {
     await this.db.prepare("DELETE FROM login_attempts WHERE email = ?").bind(email).run();
+  }
+}
+
+// ───────────── Premios ─────────────
+
+interface PrizeRow {
+  id: string;
+  org_id: string;
+  raffle_id: string;
+  place: number;
+  description: string;
+  lottery_id: string;
+  match_type: Prize["matchType"];
+  digits: number;
+  draw_date: string;
+  on_no_winner: Prize["onNoWinner"];
+  max_attempts: number | null;
+  status: Prize["status"];
+  created_at: string;
+}
+
+const toPrize = (r: PrizeRow): Prize => ({
+  id: r.id,
+  orgId: r.org_id,
+  raffleId: r.raffle_id,
+  place: r.place,
+  description: r.description,
+  lotteryId: r.lottery_id,
+  matchType: r.match_type,
+  digits: r.digits,
+  drawDate: r.draw_date,
+  onNoWinner: r.on_no_winner,
+  maxAttempts: r.max_attempts,
+  status: r.status,
+  createdAt: r.created_at,
+});
+
+export class D1PrizeRepository implements PrizeRepository {
+  constructor(private db: D1Database) {}
+
+  async create(prize: Prize) {
+    try {
+      await this.db
+        .prepare(
+          `INSERT INTO raffle_prizes (id, org_id, raffle_id, place, description, lottery_id, match_type,
+                                      digits, draw_date, on_no_winner, max_attempts, status, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(
+          prize.id,
+          prize.orgId,
+          prize.raffleId,
+          prize.place,
+          prize.description,
+          prize.lotteryId,
+          prize.matchType,
+          prize.digits,
+          prize.drawDate,
+          prize.onNoWinner,
+          prize.maxAttempts,
+          prize.status,
+          prize.createdAt,
+        )
+        .run();
+      return { ok: true as const };
+    } catch (error) {
+      if (isUniqueViolation(error)) return { ok: false as const, reason: "place_taken" as const };
+      throw error;
+    }
+  }
+
+  async findById(orgId: string, prizeId: string) {
+    const row = await this.db
+      .prepare("SELECT * FROM raffle_prizes WHERE org_id = ? AND id = ?")
+      .bind(orgId, prizeId)
+      .first<PrizeRow>();
+    return row ? toPrize(row) : null;
+  }
+
+  async listByRaffle(orgId: string, raffleId: string) {
+    const { results } = await this.db
+      .prepare("SELECT * FROM raffle_prizes WHERE org_id = ? AND raffle_id = ? ORDER BY place")
+      .bind(orgId, raffleId)
+      .all<PrizeRow>();
+    return results.map(toPrize);
+  }
+
+  async update(orgId: string, prizeId: string, patch: Parameters<PrizeRepository["update"]>[2]) {
+    const columns: [string, unknown][] = [];
+    if (patch.description !== undefined) columns.push(["description", patch.description]);
+    if (patch.lotteryId !== undefined) columns.push(["lottery_id", patch.lotteryId]);
+    if (patch.matchType !== undefined) columns.push(["match_type", patch.matchType]);
+    if (patch.digits !== undefined) columns.push(["digits", patch.digits]);
+    if (patch.drawDate !== undefined) columns.push(["draw_date", patch.drawDate]);
+    if (patch.onNoWinner !== undefined) columns.push(["on_no_winner", patch.onNoWinner]);
+    if (patch.maxAttempts !== undefined) columns.push(["max_attempts", patch.maxAttempts]);
+    if (columns.length === 0) return false;
+    const res = await this.db
+      .prepare(
+        `UPDATE raffle_prizes SET ${columns.map(([c]) => `${c} = ?`).join(", ")}
+          WHERE org_id = ? AND id = ? AND status = 'pendiente'`,
+      )
+      .bind(...columns.map(([, v]) => v), orgId, prizeId)
+      .run();
+    return res.meta.changes > 0;
+  }
+
+  async delete(orgId: string, prizeId: string) {
+    const res = await this.db
+      .prepare(
+        `DELETE FROM raffle_prizes
+          WHERE org_id = ? AND id = ? AND status = 'pendiente'
+            AND NOT EXISTS (SELECT 1 FROM prize_draw_attempts WHERE prize_id = raffle_prizes.id)`,
+      )
+      .bind(orgId, prizeId)
+      .run();
+    return res.meta.changes > 0;
+  }
+
+  async listAttempts(orgId: string, prizeId: string): Promise<PrizeAttempt[]> {
+    const { results } = await this.db
+      .prepare(
+        "SELECT * FROM prize_draw_attempts WHERE org_id = ? AND prize_id = ? ORDER BY attempt_no",
+      )
+      .bind(orgId, prizeId)
+      .all<{
+        id: number;
+        prize_id: string;
+        attempt_no: number;
+        draw_date: string;
+        result_number: string;
+        outcome: PrizeAttempt["outcome"];
+        created_at: string;
+      }>();
+    return results.map((r) => ({
+      id: r.id,
+      prizeId: r.prize_id,
+      attemptNo: r.attempt_no,
+      drawDate: r.draw_date,
+      resultNumber: r.result_number,
+      outcome: r.outcome,
+      createdAt: r.created_at,
+    }));
+  }
+
+  async listWinners(orgId: string, prizeId: string): Promise<PrizeWinner[]> {
+    const { results } = await this.db
+      .prepare("SELECT * FROM prize_winners WHERE org_id = ? AND prize_id = ? ORDER BY number")
+      .bind(orgId, prizeId)
+      .all<{
+        prize_id: string;
+        number: number;
+        attempt_id: number;
+        buyer_name: string | null;
+        buyer_phone: string | null;
+        payment_status: PaymentStatus;
+      }>();
+    return results.map((r) => ({
+      prizeId: r.prize_id,
+      number: r.number,
+      attemptId: r.attempt_id,
+      buyerName: r.buyer_name,
+      buyerPhone: r.buyer_phone,
+      paymentStatus: r.payment_status,
+    }));
+  }
+
+  /**
+   * Resolución atómica. Todas las escrituras están protegidas por la misma condición
+   * (el premio sigue pendiente y con la misma fecha), así que dos confirmaciones simultáneas
+   * no pueden registrarse ambas: la segunda no escribe nada y devuelve false.
+   */
+  async resolve(i: ResolveInput): Promise<boolean> {
+    const stillPending = `EXISTS (SELECT 1 FROM raffle_prizes
+                                   WHERE id = ? AND org_id = ? AND status = 'pendiente' AND draw_date = ?)`;
+    try {
+      const results = await this.db.batch([
+        this.db
+          .prepare(
+            `INSERT INTO prize_draw_attempts (org_id, prize_id, attempt_no, draw_date, result_number, outcome, created_at)
+             SELECT ?, ?, ?, ?, ?, ?, ? WHERE ${stillPending}`,
+          )
+          .bind(
+            i.orgId,
+            i.prizeId,
+            i.attemptNo,
+            i.expectedDrawDate,
+            i.resultNumber,
+            i.outcome,
+            i.now,
+            i.prizeId,
+            i.orgId,
+            i.expectedDrawDate,
+          ),
+        this.db
+          .prepare(
+            `INSERT INTO prize_winners (prize_id, number, attempt_id, org_id, buyer_name, buyer_phone, payment_status, created_at)
+             SELECT ?, json_extract(j.value, '$.number'), a.id, ?,
+                    json_extract(j.value, '$.buyerName'), json_extract(j.value, '$.buyerPhone'),
+                    json_extract(j.value, '$.paymentStatus'), ?
+               FROM json_each(?) j
+               JOIN prize_draw_attempts a ON a.prize_id = ? AND a.attempt_no = ?
+              WHERE ${stillPending}`,
+          )
+          .bind(
+            i.prizeId,
+            i.orgId,
+            i.now,
+            JSON.stringify(i.winners),
+            i.prizeId,
+            i.attemptNo,
+            i.prizeId,
+            i.orgId,
+            i.expectedDrawDate,
+          ),
+        this.db
+          .prepare(
+            `UPDATE raffle_prizes SET status = ?, draw_date = COALESCE(?, draw_date)
+              WHERE id = ? AND org_id = ? AND status = 'pendiente' AND draw_date = ?`,
+          )
+          .bind(i.newStatus, i.nextDrawDate, i.prizeId, i.orgId, i.expectedDrawDate),
+      ]);
+      return (results[2]?.meta.changes ?? 0) === 1;
+    } catch (error) {
+      // Intento duplicado (UNIQUE prize_id + attempt_no): otro lo resolvió antes.
+      if (isUniqueViolation(error)) return false;
+      throw error;
+    }
+  }
+
+  async listPendingDue(day: string) {
+    const { results } = await this.db
+      .prepare(
+        "SELECT * FROM raffle_prizes WHERE status = 'pendiente' AND draw_date <= ? ORDER BY draw_date",
+      )
+      .bind(day)
+      .all<PrizeRow>();
+    return results.map(toPrize);
+  }
+
+  async listPublic(raffleId: string): Promise<PublicPrize[]> {
+    const [prizes, winners] = await Promise.all([
+      this.db
+        .prepare(
+          `SELECT p.id, p.place, p.description, p.lottery_id, p.draw_date, p.status,
+                  (SELECT a.result_number FROM prize_draw_attempts a
+                    WHERE a.prize_id = p.id AND a.outcome = 'ganador'
+                    ORDER BY a.attempt_no DESC LIMIT 1) AS result_number
+             FROM raffle_prizes p WHERE p.raffle_id = ? ORDER BY p.place`,
+        )
+        .bind(raffleId)
+        .all<{
+          id: string;
+          place: number;
+          description: string;
+          lottery_id: string;
+          draw_date: string;
+          status: Prize["status"];
+          result_number: string | null;
+        }>(),
+      this.db
+        .prepare(
+          `SELECT w.prize_id, w.number FROM prize_winners w
+             JOIN raffle_prizes p ON p.id = w.prize_id
+            WHERE p.raffle_id = ? ORDER BY w.number`,
+        )
+        .bind(raffleId)
+        .all<{ prize_id: string; number: number }>(),
+    ]);
+    const byPrize = new Map<string, number[]>();
+    for (const w of winners.results)
+      byPrize.set(w.prize_id, [...(byPrize.get(w.prize_id) ?? []), w.number]);
+    return prizes.results.map((p) => ({
+      place: p.place,
+      description: p.description,
+      lotteryId: p.lottery_id,
+      drawDate: p.draw_date,
+      status: p.status,
+      resultNumber: p.result_number,
+      winningNumbers: byPrize.get(p.id) ?? [],
+    }));
+  }
+}
+
+// ───────────── Resultados de sorteos ─────────────
+
+interface ResultRow {
+  id: string;
+  lottery_id: string;
+  draw_date: string;
+  number: string;
+  series: string | null;
+  source: DrawResult["source"];
+  source_ref: string | null;
+  org_id: string | null;
+  fetched_at: string;
+}
+
+const toResult = (r: ResultRow): DrawResult => ({
+  id: r.id,
+  lotteryId: r.lottery_id,
+  drawDate: r.draw_date,
+  number: r.number,
+  series: r.series,
+  source: r.source,
+  sourceRef: r.source_ref,
+  orgId: r.org_id,
+  fetchedAt: r.fetched_at,
+});
+
+export class D1DrawResultRepository implements DrawResultRepository {
+  constructor(private db: D1Database) {}
+
+  async findOfficial(lotteryId: string, date: string) {
+    const row = await this.db
+      .prepare(
+        "SELECT * FROM draw_results WHERE org_id IS NULL AND lottery_id = ? AND draw_date = ?",
+      )
+      .bind(lotteryId, date)
+      .first<ResultRow>();
+    return row ? toResult(row) : null;
+  }
+
+  async findManual(orgId: string, lotteryId: string, date: string) {
+    const row = await this.db
+      .prepare("SELECT * FROM draw_results WHERE org_id = ? AND lottery_id = ? AND draw_date = ?")
+      .bind(orgId, lotteryId, date)
+      .first<ResultRow>();
+    return row ? toResult(row) : null;
+  }
+
+  async saveOfficial(result: DrawResult & { raw: unknown }) {
+    const res = await this.db
+      .prepare(
+        `INSERT INTO draw_results (id, lottery_id, draw_date, number, series, source, source_ref, org_id, raw, fetched_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)
+         ON CONFLICT (lottery_id, draw_date) WHERE org_id IS NULL DO NOTHING`,
+      )
+      .bind(
+        result.id,
+        result.lotteryId,
+        result.drawDate,
+        result.number,
+        result.series,
+        result.source,
+        result.sourceRef,
+        JSON.stringify(result.raw ?? null),
+        result.fetchedAt,
+      )
+      .run();
+    return res.meta.changes > 0;
+  }
+
+  async saveManual(result: DrawResult) {
+    await this.db
+      .prepare(
+        `INSERT INTO draw_results (id, lottery_id, draw_date, number, series, source, source_ref, org_id, raw, fetched_at)
+         VALUES (?, ?, ?, ?, ?, 'manual', NULL, ?, NULL, ?)
+         ON CONFLICT (org_id, lottery_id, draw_date) WHERE org_id IS NOT NULL
+         DO UPDATE SET number = excluded.number, series = excluded.series, fetched_at = excluded.fetched_at`,
+      )
+      .bind(
+        result.id,
+        result.lotteryId,
+        result.drawDate,
+        result.number,
+        result.series,
+        result.orgId,
+        result.fetchedAt,
+      )
+      .run();
   }
 }

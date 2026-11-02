@@ -13,7 +13,7 @@ export class TestClock {
 }
 
 export function makeDeps(clock = new TestClock()): { deps: Deps; clock: TestClock } {
-  return { deps: createDeps(env.DB, { clock }), clock };
+  return { deps: createDeps(env, { clock }), clock };
 }
 
 export async function seedRaffle(

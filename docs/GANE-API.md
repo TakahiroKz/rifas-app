@@ -22,17 +22,28 @@ Notas: `RESULTADO` es el número de 4 cifras (string, conserva ceros a la izquie
 
 Otros juegos (Baloto, Revancha, MiLoto) usan otro servicio (`…/api/utilidades/resultados_onj`), fuera del alcance inicial.
 
-## Códigos de las loterías iniciales
-| Juego | Variantes (código) |
-|---|---|
-| Chontico | Noche (62), Noche Sábado (89), Festivo Noche (63), Festivo Día (99), Millonario (1), Superchontico Millonario Noche (95) |
-| Dorado | Noche (46), Mañana (3), Tarde (51), Festivo (65) |
-| Lotería del Valle | Valle (17) |
+## Juegos soportados y su calendario (verificado con 5 semanas de histórico)
+Un «juego» agrupa las variantes que Gane publica según el día. Los resultados son siempre de **4 cifras** (texto, con ceros a la izquierda) más una serie.
 
-**Importante**: el mismo "juego" cambia de código según el día (p. ej. domingos/festivos aparece *Chontico Festivo Noche* o *Dorado Festivo* en vez de *Noche*). El adaptador debe resolver, para una fecha dada, **qué código corresponde** a la lotería elegida por el admin.
+| Juego | Variantes (código · día · hora de Colombia) | Sortea |
+|---|---|---|
+| Chontico Noche | 62 (lun–vie, 18:50) · 89 (sábado, 21:50) · 63 (domingo y festivos, 19:50) | todos los días |
+| Dorado Noche | 46 (lun–sáb, 21:50) · 65 (domingo y festivos, 18:50) | todos los días |
+| Lotería del Valle | 17 (miércoles, 21:50) | solo miércoles |
+
+Los demás códigos (Chontico Festivo Día 99, Millonario 1, Dorado Mañana/Tarde, etc.) se ignoran. El adaptador (`packages/lottery-sources`) los mapea así y descarta cualquier fila cuya fecha no coincida con la consultada.
+
+## Comportamiento real del servicio (observado)
+- **Aún no hay resultados** → responde `404` con `{"detail":"No se encontraron resultados…"}`. No es un error: se reintenta luego.
+- **Fallos internos** → `500` con un mensaje que incluye detalles de su base de datos (visto en 2 fechas). Nunca se propaga ese texto; se reintenta luego.
+- **Lentitud** → algunas consultas tardan más de 15 s. El adaptador corta a los 15 s y lo trata como transitorio.
+- Por eso: el Cron consulta **una vez por fecha** (la respuesta trae todos los juegos), solo después de la hora de publicación del juego, y se detiene en cuanto hay resultado oficial.
+
+## Activación
+La consulta automática está **desactivada por defecto** (`LOTTERY_SYNC_ENABLED = "false"` en `wrangler.jsonc`) hasta tener la **autorización de Gane por escrito**. Mientras tanto el administrador ingresa el resultado a mano en el panel (queda marcado como manual y es solo de su organización). Para activarla: poner la variable en `"true"` y desplegar.
 
 ## Implicaciones de diseño
-- **Calendario de sorteos**: el admin solo puede elegir fechas en las que la lotería realmente sortea. Se deriva del histórico (`/consultar` por fecha) y se cachea; para los días futuros se usa el patrón semanal + festivos.
+- **Calendario de sorteos**: el admin solo puede elegir fechas en las que la lotería realmente sortea. Se usa el patrón semanal de cada juego (tabla de arriba). Si un día excepcional no hay sorteo, el premio queda esperando y el admin puede ingresar el resultado a mano o editar la fecha.
 - Cachear resultados ya publicados (son inmutables) y no consultar más de lo necesario.
 - Guardar siempre el JSON crudo, la fecha de captura y el `NUMERO_SORTEO` como trazabilidad.
 - Si el endpoint falla o cambia: alerta al admin y **entrada manual** de respaldo.

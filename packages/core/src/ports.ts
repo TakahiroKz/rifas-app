@@ -1,8 +1,14 @@
 import type {
   Buyer,
+  DrawResult,
   Organization,
   Payment,
   PaymentStatus,
+  Prize,
+  PrizeAttempt,
+  PrizeStatus,
+  PrizeWinner,
+  PublicPrize,
   PublicTicket,
   Raffle,
   RaffleStatus,
@@ -151,4 +157,79 @@ export interface TicketRepository {
     raffleId: string,
     options: { number?: number; limit: number; beforeId?: number },
   ): Promise<TicketEvent[]>;
+}
+
+// ───────────── Loterías y premios ─────────────
+
+/** Resultado normalizado entregado por una fuente (p. ej. Gane). */
+export interface SourceDraw {
+  lotteryId: string;
+  drawDate: string;
+  number: string;
+  series: string | null;
+  sourceRef: string | null;
+  raw: unknown;
+}
+
+export interface LotterySource {
+  /** false = consulta automática desactivada (p. ej. a la espera de la autorización de la fuente). */
+  readonly enabled: boolean;
+  /** Resultados de los juegos soportados para esa fecha. [] si aún no hay. Lanza si la fuente falla. */
+  fetchDraws(date: string): Promise<SourceDraw[]>;
+}
+
+export interface DrawResultRepository {
+  findOfficial(lotteryId: string, date: string): Promise<DrawResult | null>;
+  findManual(orgId: string, lotteryId: string, date: string): Promise<DrawResult | null>;
+  /** Inserta si no existe (los resultados oficiales no se sobrescriben). true si insertó. */
+  saveOfficial(result: DrawResult & { raw: unknown }): Promise<boolean>;
+  /** Crea o reemplaza el resultado manual de la organización para ese juego y fecha. */
+  saveManual(result: DrawResult): Promise<void>;
+}
+
+export interface ResolveInput {
+  orgId: string;
+  prizeId: string;
+  /** Fecha del sorteo que se está resolviendo; protege contra resolver dos veces. */
+  expectedDrawDate: string;
+  attemptNo: number;
+  resultNumber: string;
+  outcome: "ganador" | "sin_ganador";
+  winners: {
+    number: number;
+    buyerName: string | null;
+    buyerPhone: string | null;
+    paymentStatus: PaymentStatus;
+  }[];
+  newStatus: PrizeStatus;
+  /** Nueva fecha si se reprograma. */
+  nextDrawDate: string | null;
+  now: string;
+}
+
+export interface PrizeRepository {
+  create(prize: Prize): Promise<{ ok: true } | { ok: false; reason: "place_taken" }>;
+  findById(orgId: string, prizeId: string): Promise<Prize | null>;
+  listByRaffle(orgId: string, raffleId: string): Promise<Prize[]>;
+  update(
+    orgId: string,
+    prizeId: string,
+    patch: {
+      description?: string;
+      lotteryId?: string;
+      matchType?: Prize["matchType"];
+      digits?: number;
+      drawDate?: string;
+      onNoWinner?: Prize["onNoWinner"];
+      maxAttempts?: number | null;
+    },
+  ): Promise<boolean>;
+  delete(orgId: string, prizeId: string): Promise<boolean>;
+  listAttempts(orgId: string, prizeId: string): Promise<PrizeAttempt[]>;
+  listWinners(orgId: string, prizeId: string): Promise<PrizeWinner[]>;
+  /** Atómico. false si el premio ya no estaba pendiente en esa fecha (otro lo resolvió antes). */
+  resolve(input: ResolveInput): Promise<boolean>;
+  /** Premios pendientes de todas las organizaciones con fecha de sorteo <= `day`. */
+  listPendingDue(day: string): Promise<Prize[]>;
+  listPublic(raffleId: string): Promise<PublicPrize[]>;
 }

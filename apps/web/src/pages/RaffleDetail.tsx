@@ -4,6 +4,7 @@ import { api } from "../api";
 import { DebtsTab } from "../components/DebtsTab";
 import { HistoryTab } from "../components/HistoryTab";
 import { NumberBoard } from "../components/NumberBoard";
+import { PrizesTab } from "../components/PrizesTab";
 import { ReservationSearch } from "../components/ReservationSearch";
 import { SettingsTab } from "../components/SettingsTab";
 import { TicketDialog } from "../components/TicketDialog";
@@ -11,9 +12,10 @@ import { formatMoney, plural } from "../format";
 import { useSession } from "../session";
 import { Badge, Button, ErrorBox, useAsync, useToast } from "../ui";
 
-type Tab = "numeros" | "deudas" | "historial" | "ajustes";
+type Tab = "numeros" | "premios" | "deudas" | "historial" | "ajustes";
 const TABS: [Tab, string][] = [
   ["numeros", "Números"],
+  ["premios", "Premios"],
   ["deudas", "Deudas"],
   ["historial", "Historial"],
   ["ajustes", "Ajustes"],
@@ -77,14 +79,14 @@ export function RaffleDetail({ id }: { id: string }) {
         </p>
       )}
 
-      <nav class="flex gap-1 border-b border-slate-200" aria-label="Secciones">
+      <nav class="flex gap-1 overflow-x-auto border-b border-slate-200" aria-label="Secciones">
         {TABS.map(([key, label]) => (
           <button
             key={key}
             type="button"
             onClick={() => setTab(key)}
             aria-current={tab === key ? "page" : undefined}
-            class={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
+            class={`-mb-px shrink-0 whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium ${
               tab === key
                 ? "border-indigo-600 text-indigo-700"
                 : "border-transparent text-slate-500 hover:text-slate-800"
@@ -113,6 +115,7 @@ export function RaffleDetail({ id }: { id: string }) {
           <NumberBoard raffle={r} tickets={tickets.data ?? []} onSelect={setSelected} />
         </div>
       )}
+      {tab === "premios" && <PrizesTab raffle={r} />}
       {tab === "deudas" && <DebtsTab raffle={r} version={version} onChanged={refresh} />}
       {tab === "historial" && <HistoryTab raffle={r} version={version} />}
       {tab === "ajustes" && <SettingsTab raffle={r} onSaved={refresh} />}

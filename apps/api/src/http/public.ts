@@ -4,7 +4,13 @@ import {
   type ReserveResponse,
   reserveRequestSchema,
 } from "@rifas/contracts";
-import { getPublicRaffle, listPublicTickets, reserveTickets } from "@rifas/core";
+import {
+  getGame,
+  getPublicRaffle,
+  listPublicPrizes,
+  listPublicTickets,
+  reserveTickets,
+} from "@rifas/core";
 import { Hono } from "hono";
 import type { AppEnv } from "../app";
 import { verifyTurnstile } from "../infra/turnstile";
@@ -20,6 +26,7 @@ publicRoutes.get("/:orgSlug/:raffleSlug", async (c) => {
     return c.json(body, status);
   }
   const { organization, raffle } = result.value;
+  const prizes = await listPublicPrizes(c.get("deps"), raffle.id);
   const body: PublicRaffleResponse = {
     organization: {
       name: organization.name,
@@ -34,7 +41,17 @@ publicRoutes.get("/:orgSlug/:raffleSlug", async (c) => {
       numberWidth: raffle.numberWidth,
       ticketPrice: raffle.ticketPrice,
       drawDate: raffle.drawDate,
+      status: raffle.status === "cerrada" ? "cerrada" : "activa",
     },
+    prizes: prizes.map((p) => ({
+      place: p.place,
+      description: p.description,
+      lotteryName: getGame(p.lotteryId)?.name ?? p.lotteryId,
+      drawDate: p.drawDate,
+      status: p.status,
+      resultNumber: p.resultNumber,
+      winningNumbers: p.winningNumbers,
+    })),
     turnstileSiteKey:
       c.env.REQUIRE_TURNSTILE === "true" && c.env.TURNSTILE_SITE_KEY
         ? c.env.TURNSTILE_SITE_KEY

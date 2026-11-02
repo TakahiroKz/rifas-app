@@ -4,9 +4,9 @@ Plataforma web low cost para gestionar **los números de una rifa** (sin pagos e
 
 - **Página pública**: el cliente ve los números, elige uno o varios y se abre WhatsApp con un mensaje prellenado. El número queda *apartado* 24 h.
 - **Panel admin**: el organizador crea rifas, marca números como *vendido* (*pagado* o *debe* con fecha) y consulta el historial.
-- **Loterías**: resultados de Gane (API/scraping) para anunciar el ganador. La plataforma no hace sorteos ni capta dinero.
+- **Loterías y premios**: cada premio usa las primeras o últimas cifras del resultado de una lotería (Chontico Noche, Dorado Noche, Lotería del Valle). Se confirma el ganador y se reprograma si no hay. La plataforma no hace sorteos ni capta dinero.
 
-> Estado: **Fase 3 completada** (página pública con protecciones). Falta la integración con loterías (Fase 4) y publicar: ver la lista previa en [`docs/PLAN.md`](docs/PLAN.md#14-lista-previa-a-publicar-lanzamiento). Ver [`docs/PLAN.md`](docs/PLAN.md).
+> Estado: **Fase 4 completada** (loterías y premios). Falta pulir (Fase 5) y publicar: ver la lista previa en [`docs/PLAN.md`](docs/PLAN.md#14-lista-previa-a-publicar-lanzamiento). Ver [`docs/PLAN.md`](docs/PLAN.md).
 
 ## Requisitos
 - Node.js 22 (`.nvmrc`) y [pnpm](https://pnpm.io) 10.
