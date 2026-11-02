@@ -122,11 +122,22 @@ Adaptador inicial: `GaneSource` (ver [`GANE-API.md`](GANE-API.md)). Resuelve var
 - Prueba automática de aislamiento: datos de la org A nunca visibles para la org B.
 
 ### 5.7 Autenticación y seguridad
-- Admin: correo + contraseña (PBKDF2-SHA256 con WebCrypto, iteraciones al máximo que permite Workers), sesión en tabla `sessions`, cookie `HttpOnly; Secure; SameSite=Lax`, protección CSRF por token en mutaciones.
-- Público: **Cloudflare Turnstile** + límite de tasa en `POST /api/public/reservations`; máximo de números por reserva y por IP/sesión.
-- Validación de toda entrada con zod; consultas siempre parametrizadas.
+**Administración (implementado en la Fase 2)**
+- **Ingreso**: correo + contraseña. Hash PBKDF2-SHA256 con WebCrypto, 100 000 iteraciones (máximo de Workers), sal aleatoria y comparación en tiempo constante. Si el correo no existe se verifica igual contra un hash falso para no revelar qué correos existen.
+- **Sesión**: cookie `rifas_session` (`HttpOnly`, `SameSite=Strict`, `Secure` en HTTPS) con un token aleatorio de 256 bits. En la base solo se guarda su **hash SHA-256** (si se filtra la base, los tokens no sirven). Dura 7 días; `Salir` la borra.
+- **CSRF**: toda petición que modifica datos exige el encabezado `X-CSRF-Token` (entregado al iniciar sesión) y, si el navegador envía `Origin`, debe ser el mismo sitio.
+- **Fuerza bruta**: 5 intentos fallidos por correo, o 20 por IP, en 15 minutos → `429`. Un ingreso correcto borra los fallos.
+- **Aislamiento**: la organización sale siempre de la sesión, nunca de la petición; los recursos de otra organización responden `404`.
+- **Alta de administradores**: no hay registro abierto. Se crean con `pnpm admin:create` (ver README); la contraseña se pide oculta y nunca queda en el historial del shell.
+- El Cron limpia sesiones caducadas e intentos fallidos antiguos.
+
+**Público**
+- **Cloudflare Turnstile** + límite de tasa en `POST …/reservations` (pendiente, Fase 3); máximo de números por solicitud.
+
+**General**
+- Validación de toda entrada con zod y en el dominio; consultas siempre parametrizadas.
 - Secretos solo como *secrets* de Cloudflare; `.env.example` sin valores reales.
-- Encabezados: CSP estricta, `X-Content-Type-Options`, `Referrer-Policy`.
+- Encabezados: CSP estricta, `X-Content-Type-Options`, `Referrer-Policy` (pendiente, antes de publicar).
 
 ### 5.8 Tiempo
 Todo se guarda en **UTC** (ISO 8601). Las fechas de sorteo y vencimientos se muestran en `America/Bogota`.
@@ -138,13 +149,21 @@ Se construye en el frontend con la respuesta de la reserva: `https://wa.me/<tel>
 | Zona | Rutas | Estado |
 |---|---|---|
 | Pública | `GET /public/:org/:rifa` · `GET /public/:org/:rifa/tickets` · `POST /public/:org/:rifa/reservations` | ✅ Fase 1 |
-| Admin | `POST /admin/login` · CRUD `/admin/raffles` · cambios de número (vender, pago, liberar) · historial · deudas · premios y reprogramación · calendario de loterías | Fase 2 en adelante |
+| Sesión | `POST /admin/login` · `POST /admin/logout` · `GET /admin/session` · `PATCH /admin/organization` | ✅ Fase 2 |
+| Rifas | `GET/POST /admin/raffles` · `GET/PATCH /admin/raffles/:id` | ✅ Fase 2 |
+| Números | `GET …/tickets` · `PUT …/tickets/:n/sale` · `PATCH …/tickets/:n/payment` · `DELETE …/tickets/:n` | ✅ Fase 2 |
+| Apartados | `GET …/reservations/:código` · `POST …/reservations/:código/sale` (vende todos los números del código) | ✅ Fase 2 |
+| Deudas / historial | `GET …/debts` · `GET …/history?number&beforeId&limit` | ✅ Fase 2 |
+| Premios y loterías | premios, reprogramación, calendario de sorteos | Fase 4 |
 
 - La zona pública **no expone datos del comprador ni deudas**; solo `{ number, status }` de los números no disponibles.
 - Una rifa que no está `activa` responde `404` igual que una inexistente.
-- Los casos de uso de administración (`markSold`, `updatePayment`, `releaseTicket`, listados e historial) ya existen en `packages/core` con pruebas, pero **no se exponen por HTTP hasta tener autenticación** (Fase 2).
-- Errores: `{ error: { code, message, details? } }` (`invalid_input` 400 · `not_found` 404 · `numbers_unavailable` 409).
+- Toda la zona `/admin` exige sesión y responde con `Cache-Control: no-store`.
+- Errores: `{ error: { code, message, details? } }` (`invalid_input` 400 · `unauthorized` 401 · `forbidden` 403 · `not_found` 404 · `numbers_unavailable`/`slug_taken`/`invalid_state` 409 · `too_many_attempts` 429).
 - Pendiente en la ruta de apartado (Fase 3): Turnstile y límite de tasa.
+
+## Panel de administración (`apps/web`)
+SPA en `/admin`: ingreso, lista de rifas con avance y montos, creación de rifa, tablero de números (páginas de 200, salto directo a un número), venta pagada o con deuda y fecha, búsqueda de apartado por código para vender todos sus números de una vez, listado de deudas ordenado por fecha, historial paginado y ajustes (rifa y WhatsApp de la organización). Un apartado vencido se muestra como activo aunque el Cron aún no lo haya limpiado.
 
 ## 7. Entornos y despliegue
 | Entorno | Datos | Cómo |

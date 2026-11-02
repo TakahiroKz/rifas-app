@@ -6,7 +6,7 @@ Plataforma web low cost para gestionar **los números de una rifa** (sin pagos e
 - **Panel admin**: el organizador crea rifas, marca números como *vendido* (*pagado* o *debe* con fecha) y consulta el historial.
 - **Loterías**: resultados de Gane (API/scraping) para anunciar el ganador. La plataforma no hace sorteos ni capta dinero.
 
-> Estado: **Fase 1 completada** (núcleo: números, reservas, historial y API pública). El panel admin llega en la Fase 2. Ver [`docs/PLAN.md`](docs/PLAN.md).
+> Estado: **Fase 2 completada** (panel de administración). La página pública llega en la Fase 3. Ver [`docs/PLAN.md`](docs/PLAN.md).
 
 ## Requisitos
 - Node.js 22 (`.nvmrc`) y [pnpm](https://pnpm.io) 10.
@@ -22,6 +22,12 @@ Base de datos local (D1 simulada) y datos de ejemplo:
 ```bash
 cd apps/api && pnpm exec wrangler d1 migrations apply rifas-db --local
 ```
+Crear el primer administrador (no hay registro abierto; la contraseña se pide oculta):
+```bash
+pnpm admin:create --email tu@correo.com --name "Tu Nombre" --org-slug finaura --org-name "Capital Finaura" --whatsapp 573001112233
+```
+Agrega `--remote` para crearlo en la base de producción. Luego abre `http://localhost:5173/admin` tras `pnpm dev`.
+
 Para desarrollo local con secretos, copia `.dev.vars.example` a `apps/api/.dev.vars` (no se versiona).
 
 ## Estructura

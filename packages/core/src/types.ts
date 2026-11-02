@@ -72,3 +72,40 @@ export interface TicketEvent {
   reservationCode: string | null;
   at: string;
 }
+
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+}
+
+export interface Session {
+  /** SHA-256 del token de la cookie. */
+  id: string;
+  userId: string;
+  orgId: string;
+  csrfToken: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
+/** Quién está haciendo la petición de administración. */
+export interface AuthContext {
+  user: User;
+  organization: Organization;
+  csrfToken: string;
+}
+
+export interface RaffleStats {
+  /** Apartados vigentes. */
+  reserved: number;
+  sold: number;
+  paid: number;
+  owed: number;
+  /** Pesos: vendidos × precio (null si la rifa no tiene precio). */
+  soldAmount: number | null;
+  paidAmount: number | null;
+  owedAmount: number | null;
+}
+
+export type RaffleWithStats = Raffle & { stats: RaffleStats };

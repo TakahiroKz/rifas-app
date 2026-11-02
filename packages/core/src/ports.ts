@@ -6,8 +6,10 @@ import type {
   PublicTicket,
   Raffle,
   RaffleStatus,
+  Session,
   TicketEvent,
   TicketRecord,
+  User,
 } from "./types";
 
 export interface Clock {
@@ -25,6 +27,30 @@ export interface CodeGenerator {
 export interface OrganizationRepository {
   create(org: Organization): Promise<{ ok: true } | { ok: false; reason: "slug_taken" }>;
   findBySlug(slug: string): Promise<Organization | null>;
+  findById(orgId: string): Promise<Organization | null>;
+  update(orgId: string, patch: { name?: string; whatsappPhone?: string }): Promise<boolean>;
+}
+
+export interface UserWithHash extends User {
+  passwordHash: string;
+}
+
+export interface AuthRepository {
+  findUserByEmail(email: string): Promise<UserWithHash | null>;
+  /** Primera organización a la que pertenece el usuario. */
+  findMembership(userId: string): Promise<{ orgId: string; role: "owner" | "admin" } | null>;
+  createSession(session: Session): Promise<void>;
+  findSession(id: string): Promise<(Session & { user: User }) | null>;
+  deleteSession(id: string): Promise<void>;
+  /** Limpieza de sesiones e intentos fallidos antiguos. */
+  deleteExpired(now: string, attemptsBefore: string): Promise<void>;
+  recordFailedLogin(email: string, ip: string, at: string): Promise<void>;
+  countFailedLogins(input: {
+    email: string;
+    ip: string;
+    since: string;
+  }): Promise<{ byEmail: number; byIp: number }>;
+  clearFailedLogins(email: string): Promise<void>;
 }
 
 export interface RaffleRepository {
@@ -37,6 +63,18 @@ export interface RaffleRepository {
     raffleSlug: string,
   ): Promise<{ organization: Organization; raffle: Raffle } | null>;
   setStatus(orgId: string, raffleId: string, status: RaffleStatus): Promise<boolean>;
+  update(
+    orgId: string,
+    raffleId: string,
+    patch: {
+      title?: string;
+      description?: string;
+      ticketPrice?: number | null;
+      drawDate?: string | null;
+      status?: RaffleStatus;
+    },
+  ): Promise<boolean>;
+  listByOrg(orgId: string): Promise<Raffle[]>;
 }
 
 export interface ReserveInput {
@@ -87,6 +125,18 @@ export interface TicketRepository {
     raffleId: string,
     filter: { status?: "apartado" | "vendido"; paymentStatus?: PaymentStatus },
   ): Promise<TicketRecord[]>;
+  /** Números de una reserva (apartados vigentes con ese código). */
+  findReservation(
+    orgId: string,
+    raffleId: string,
+    code: string,
+    now: string,
+  ): Promise<TicketRecord[]>;
+  /** Conteos por rifa de la organización, para el tablero. */
+  countByRaffle(
+    orgId: string,
+    now: string,
+  ): Promise<Map<string, { reserved: number; sold: number; paid: number; owed: number }>>;
   listEvents(
     orgId: string,
     raffleId: string,

@@ -42,3 +42,86 @@ export async function seedRaffle(
   if (!raffle.ok) throw new Error(raffle.error.message);
   return { org: org.value, raffle: raffle.value };
 }
+
+// ───────────── Administración por HTTP ─────────────
+
+import { hashPassword } from "@rifas/core";
+import { createApp } from "../src/app";
+
+export async function seedUser(opts: {
+  orgId: string;
+  email: string;
+  password: string;
+  name?: string;
+}) {
+  const id = crypto.randomUUID();
+  await env.DB.batch([
+    env.DB.prepare(
+      "INSERT INTO users (id, email, password_hash, name, created_at) VALUES (?, ?, ?, ?, ?)",
+    ).bind(
+      id,
+      opts.email,
+      await hashPassword(opts.password),
+      opts.name ?? "Admin",
+      "2026-11-02T00:00:00.000Z",
+    ),
+    env.DB.prepare("INSERT INTO memberships (user_id, org_id, role) VALUES (?, ?, 'owner')").bind(
+      id,
+      opts.orgId,
+    ),
+  ]);
+  return id;
+}
+
+export interface Client {
+  app: ReturnType<typeof createApp>;
+  cookie: string;
+  csrf: string;
+  call(
+    method: string,
+    path: string,
+    body?: unknown,
+    extra?: Record<string, string>,
+  ): Promise<Response>;
+}
+
+/** Inicia sesión por HTTP y devuelve un cliente con cookie y token CSRF. */
+export async function loginClient(
+  app: ReturnType<typeof createApp>,
+  email: string,
+  password: string,
+): Promise<Client> {
+  const res = await app.request(
+    "/api/v1/admin/login",
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    },
+    env,
+  );
+  if (res.status !== 200) throw new Error(`login ${res.status}: ${await res.text()}`);
+  const cookie = (res.headers.get("set-cookie") ?? "").split(";")[0] ?? "";
+  const { csrfToken } = (await res.json()) as { csrfToken: string };
+  const client: Client = {
+    app,
+    cookie,
+    csrf: csrfToken,
+    call: async (method, path, body, extra = {}) =>
+      await app.request(
+        `/api/v1/admin${path}`,
+        {
+          method,
+          headers: {
+            cookie,
+            "content-type": "application/json",
+            ...(method === "GET" ? {} : { "x-csrf-token": csrfToken }),
+            ...extra,
+          },
+          ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+        },
+        env,
+      ),
+  };
+  return client;
+}

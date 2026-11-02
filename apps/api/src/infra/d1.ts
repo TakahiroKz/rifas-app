@@ -1,4 +1,5 @@
 import type {
+  AuthRepository,
   Clock,
   CodeGenerator,
   IdGenerator,
@@ -11,9 +12,12 @@ import type {
   RaffleRepository,
   RaffleStatus,
   ReserveInput,
+  Session,
   TicketEvent,
   TicketRecord,
   TicketRepository,
+  User,
+  UserWithHash,
 } from "@rifas/core";
 import { buildReservationCode } from "@rifas/core";
 
@@ -73,6 +77,33 @@ export class D1OrganizationRepository implements OrganizationRepository {
       .bind(slug)
       .first<OrgRow>();
     return row ? toOrg(row) : null;
+  }
+
+  async findById(orgId: string) {
+    const row = await this.db
+      .prepare("SELECT * FROM organizations WHERE id = ?")
+      .bind(orgId)
+      .first<OrgRow>();
+    return row ? toOrg(row) : null;
+  }
+
+  async update(orgId: string, patch: { name?: string; whatsappPhone?: string }) {
+    const sets: string[] = [];
+    const params: unknown[] = [];
+    if (patch.name !== undefined) {
+      sets.push("name = ?");
+      params.push(patch.name);
+    }
+    if (patch.whatsappPhone !== undefined) {
+      sets.push("whatsapp_phone = ?");
+      params.push(patch.whatsappPhone);
+    }
+    if (sets.length === 0) return false;
+    const res = await this.db
+      .prepare(`UPDATE organizations SET ${sets.join(", ")} WHERE id = ?`)
+      .bind(...params, orgId)
+      .run();
+    return res.meta.changes > 0;
   }
 }
 
@@ -157,6 +188,31 @@ export class D1RaffleRepository implements RaffleRepository {
       .bind(org.id, raffleSlug)
       .first<RaffleRow>();
     return row ? { organization: toOrg(org), raffle: toRaffle(row) } : null;
+  }
+
+  async update(orgId: string, raffleId: string, patch: Parameters<RaffleRepository["update"]>[2]) {
+    const columns: [string, unknown][] = [];
+    if (patch.title !== undefined) columns.push(["title", patch.title]);
+    if (patch.description !== undefined) columns.push(["description", patch.description]);
+    if (patch.ticketPrice !== undefined) columns.push(["ticket_price", patch.ticketPrice]);
+    if (patch.drawDate !== undefined) columns.push(["draw_date", patch.drawDate]);
+    if (patch.status !== undefined) columns.push(["status", patch.status]);
+    if (columns.length === 0) return false;
+    const res = await this.db
+      .prepare(
+        `UPDATE raffles SET ${columns.map(([c]) => `${c} = ?`).join(", ")} WHERE org_id = ? AND id = ?`,
+      )
+      .bind(...columns.map(([, v]) => v), orgId, raffleId)
+      .run();
+    return res.meta.changes > 0;
+  }
+
+  async listByOrg(orgId: string) {
+    const { results } = await this.db
+      .prepare("SELECT * FROM raffles WHERE org_id = ? ORDER BY created_at DESC, id")
+      .bind(orgId)
+      .all<RaffleRow>();
+    return results.map(toRaffle);
   }
 
   async setStatus(orgId: string, raffleId: string, status: RaffleStatus) {
@@ -459,6 +515,39 @@ export class D1TicketRepository implements TicketRepository {
     return results.map(toTicket);
   }
 
+  async findReservation(orgId: string, raffleId: string, code: string, now: string) {
+    const { results } = await this.db
+      .prepare(
+        `SELECT * FROM tickets
+          WHERE org_id = ? AND raffle_id = ? AND reservation_code = ?
+            AND status = 'apartado' AND reserved_until > ?
+          ORDER BY number`,
+      )
+      .bind(orgId, raffleId, code, now)
+      .all<TicketRow>();
+    return results.map(toTicket);
+  }
+
+  async countByRaffle(orgId: string, now: string) {
+    const { results } = await this.db
+      .prepare(
+        `SELECT raffle_id,
+                SUM(CASE WHEN status = 'apartado' AND reserved_until > ? THEN 1 ELSE 0 END) AS reserved,
+                SUM(CASE WHEN status = 'vendido' THEN 1 ELSE 0 END) AS sold,
+                SUM(CASE WHEN payment_status = 'pagado' THEN 1 ELSE 0 END) AS paid,
+                SUM(CASE WHEN payment_status = 'debe' THEN 1 ELSE 0 END) AS owed
+           FROM tickets WHERE org_id = ? GROUP BY raffle_id`,
+      )
+      .bind(now, orgId)
+      .all<{ raffle_id: string; reserved: number; sold: number; paid: number; owed: number }>();
+    return new Map(
+      results.map((r) => [
+        r.raffle_id,
+        { reserved: r.reserved, sold: r.sold, paid: r.paid, owed: r.owed },
+      ]),
+    );
+  }
+
   async listEvents(
     orgId: string,
     raffleId: string,
@@ -480,5 +569,111 @@ export class D1TicketRepository implements TicketRepository {
       .bind(...params)
       .all<EventRow>();
     return results.map(toEvent);
+  }
+}
+
+// ───────────── Autenticación ─────────────
+
+export class D1AuthRepository implements AuthRepository {
+  constructor(private db: D1Database) {}
+
+  async findUserByEmail(email: string): Promise<UserWithHash | null> {
+    const row = await this.db
+      .prepare("SELECT id, email, name, password_hash FROM users WHERE email = ?")
+      .bind(email)
+      .first<{ id: string; email: string; name: string; password_hash: string }>();
+    return row
+      ? { id: row.id, email: row.email, name: row.name, passwordHash: row.password_hash }
+      : null;
+  }
+
+  async findMembership(userId: string) {
+    const row = await this.db
+      .prepare("SELECT org_id, role FROM memberships WHERE user_id = ? ORDER BY rowid LIMIT 1")
+      .bind(userId)
+      .first<{ org_id: string; role: "owner" | "admin" }>();
+    return row ? { orgId: row.org_id, role: row.role } : null;
+  }
+
+  async createSession(session: Session) {
+    await this.db
+      .prepare(
+        "INSERT INTO sessions (id, user_id, org_id, csrf_token, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)",
+      )
+      .bind(
+        session.id,
+        session.userId,
+        session.orgId,
+        session.csrfToken,
+        session.createdAt,
+        session.expiresAt,
+      )
+      .run();
+  }
+
+  async findSession(id: string) {
+    const row = await this.db
+      .prepare(
+        `SELECT s.id, s.user_id, s.org_id, s.csrf_token, s.created_at, s.expires_at,
+                u.email, u.name
+           FROM sessions s JOIN users u ON u.id = s.user_id
+          WHERE s.id = ?`,
+      )
+      .bind(id)
+      .first<{
+        id: string;
+        user_id: string;
+        org_id: string;
+        csrf_token: string;
+        created_at: string;
+        expires_at: string;
+        email: string;
+        name: string;
+      }>();
+    if (!row) return null;
+    const user: User = { id: row.user_id, email: row.email, name: row.name };
+    return {
+      id: row.id,
+      userId: row.user_id,
+      orgId: row.org_id,
+      csrfToken: row.csrf_token,
+      createdAt: row.created_at,
+      expiresAt: row.expires_at,
+      user,
+    };
+  }
+
+  async deleteSession(id: string) {
+    await this.db.prepare("DELETE FROM sessions WHERE id = ?").bind(id).run();
+  }
+
+  async deleteExpired(now: string, attemptsBefore: string) {
+    await this.db.batch([
+      this.db.prepare("DELETE FROM sessions WHERE expires_at <= ?").bind(now),
+      this.db.prepare("DELETE FROM login_attempts WHERE at < ?").bind(attemptsBefore),
+    ]);
+  }
+
+  async recordFailedLogin(email: string, ip: string, at: string) {
+    await this.db
+      .prepare("INSERT INTO login_attempts (email, ip, at) VALUES (?, ?, ?)")
+      .bind(email, ip, at)
+      .run();
+  }
+
+  async countFailedLogins(input: { email: string; ip: string; since: string }) {
+    const row = await this.db
+      .prepare(
+        `SELECT
+           (SELECT COUNT(*) FROM login_attempts WHERE email = ? AND at >= ?) AS by_email,
+           (SELECT COUNT(*) FROM login_attempts WHERE ip = ? AND at >= ?) AS by_ip`,
+      )
+      .bind(input.email, input.since, input.ip, input.since)
+      .first<{ by_email: number; by_ip: number }>();
+    return { byEmail: row?.by_email ?? 0, byIp: row?.by_ip ?? 0 };
+  }
+
+  async clearFailedLogins(email: string) {
+    await this.db.prepare("DELETE FROM login_attempts WHERE email = ?").bind(email).run();
   }
 }

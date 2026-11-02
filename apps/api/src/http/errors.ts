@@ -1,7 +1,7 @@
 import type { ErrorResponse } from "@rifas/contracts";
 import type { DomainError, ErrorCode } from "@rifas/core";
 
-type HttpStatus = 400 | 404 | 409;
+type HttpStatus = 400 | 401 | 404 | 409 | 429;
 
 const STATUS: Record<ErrorCode, HttpStatus> = {
   invalid_input: 400,
@@ -11,6 +11,8 @@ const STATUS: Record<ErrorCode, HttpStatus> = {
   numbers_unavailable: 409,
   slug_taken: 409,
   invalid_state: 409,
+  unauthorized: 401,
+  too_many_attempts: 429,
 };
 
 export function toHttpError(error: DomainError): { status: HttpStatus; body: ErrorResponse } {

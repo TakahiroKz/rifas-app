@@ -1,6 +1,6 @@
 # Plan: Plataforma de rifas (microSaaS)
 
-> Estado: Fase 1 completada. Última actualización: 2026-11-02. Repo: `TakahiroKz/rifas-app`.
+> Estado: Fase 2 completada. Última actualización: 2026-11-02. Repo: `TakahiroKz/rifas-app`.
 
 ## 1. Visión
 Plataforma para gestionar **los números de una rifa** (sin pagos en línea) y, además, **consultar resultados de loterías y sorteos** (Colombia y otros países) para anunciar ganadores.
@@ -146,7 +146,7 @@ Sí se pueden usar **varios dominios**: Cloudflare Pages permite agregar varios 
 ## 10. Fases
 1. **Fase 0 – Repo y tooling** ✅ (pendiente de tu lado: crear D1 y desplegar, ver README): monorepo pnpm, TypeScript, Biome, Vitest, CI, `.env.example`, proyecto Cloudflare (Worker + D1) y dominio.
 2. **Fase 1 – Núcleo** ✅: esquema D1 multi-tenant, dominio y casos de uso, reserva atómica, expiración a 24 h, historial y API pública, con 51 pruebas (incluye concurrencia y aislamiento entre organizaciones).
-3. **Fase 2 – Admin**: login (y exponer por HTTP los casos de uso de administración ya hechos), CRUD de rifas, tablero de números, vendido/pagado/debe con fecha, historial.
+3. **Fase 2 – Admin** ✅: login con sesiones seguras, CRUD de rifas, tablero de números, vender como pagado o debe con fecha, venta por código de apartado, listado de deudas, historial y ajustes. 88 pruebas automáticas más verificación de punta a punta en un navegador real.
 4. **Fase 3 – Público**: cuadrícula, selección, apartado + WhatsApp, política de privacidad enlazada.
 5. **Fase 4 – Loterías**: modelo de resultados, 2–3 adaptadores de Colombia, entrada manual, vinculación a rifa y sugerencia de ganador.
 6. **Fase 5 – Pulido**: estadísticas, CSV, alertas de deuda vencida, despliegue y dominio.

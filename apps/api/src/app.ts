@@ -1,6 +1,7 @@
 import { type HealthResponse, healthResponseSchema } from "@rifas/contracts";
 import type { Deps } from "@rifas/core";
 import { Hono } from "hono";
+import { adminRoutes } from "./http/admin";
 import { publicRoutes } from "./http/public";
 import { createDeps } from "./infra/deps";
 
@@ -37,6 +38,7 @@ export function createApp(options: AppOptions = {}) {
   });
 
   app.route("/api/v1/public", publicRoutes);
+  app.route("/api/v1/admin", adminRoutes);
 
   app.notFound((c) =>
     c.json({ error: { code: "not_found", message: "Recurso no encontrado" } }, 404),

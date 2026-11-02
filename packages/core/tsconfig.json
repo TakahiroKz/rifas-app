@@ -1,4 +1,8 @@
 {
   "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // El núcleo no hace I/O, pero usa APIs web estándar (WebCrypto, TextEncoder, btoa).
+    "lib": ["ES2022", "DOM"]
+  },
   "include": ["src"]
 }

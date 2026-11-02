@@ -1,4 +1,5 @@
 import type {
+  AuthRepository,
   Clock,
   CodeGenerator,
   IdGenerator,
@@ -8,6 +9,7 @@ import type {
 } from "./ports";
 
 export interface Deps {
+  auth: AuthRepository;
   orgs: OrganizationRepository;
   raffles: RaffleRepository;
   tickets: TicketRepository;

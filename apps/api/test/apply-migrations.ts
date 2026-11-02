@@ -7,8 +7,15 @@ await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
 // Base limpia antes de cada prueba (orden respetando claves foráneas).
 beforeEach(async () => {
   await env.DB.batch(
-    ["ticket_events", "tickets", "raffles", "memberships", "organizations", "users"].map((t) =>
-      env.DB.prepare(`DELETE FROM ${t}`),
-    ),
+    [
+      "ticket_events",
+      "tickets",
+      "raffles",
+      "sessions",
+      "login_attempts",
+      "memberships",
+      "organizations",
+      "users",
+    ].map((t) => env.DB.prepare(`DELETE FROM ${t}`)),
   );
 });

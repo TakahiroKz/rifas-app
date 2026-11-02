@@ -4,7 +4,9 @@ export type ErrorCode =
   | "raffle_not_active"
   | "numbers_unavailable"
   | "slug_taken"
-  | "invalid_state";
+  | "invalid_state"
+  | "unauthorized"
+  | "too_many_attempts";
 
 export interface DomainError {
   code: ErrorCode;

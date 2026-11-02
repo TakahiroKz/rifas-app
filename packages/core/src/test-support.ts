@@ -1,6 +1,7 @@
 // Implementación en memoria de los puertos, solo para pruebas unitarias del dominio.
 import type { Deps } from "./deps";
 import type {
+  AuthRepository,
   Clock,
   CodeGenerator,
   IdGenerator,
@@ -9,14 +10,17 @@ import type {
   RaffleRepository,
   ReserveInput,
   TicketRepository,
+  UserWithHash,
 } from "./ports";
 import type {
   Organization,
   PaymentStatus,
   PublicTicket,
   Raffle,
+  Session,
   TicketEvent,
   TicketRecord,
+  User,
 } from "./types";
 
 export class FakeClock implements Clock {
@@ -40,6 +44,16 @@ class Orgs implements OrganizationRepository {
   async findBySlug(slug: string) {
     return this.items.find((o) => o.slug === slug) ?? null;
   }
+  async findById(orgId: string) {
+    return this.items.find((o) => o.id === orgId) ?? null;
+  }
+  async update(orgId: string, patch: { name?: string; whatsappPhone?: string }) {
+    const org = this.items.find((o) => o.id === orgId);
+    if (!org) return false;
+    if (patch.name !== undefined) org.name = patch.name;
+    if (patch.whatsappPhone !== undefined) org.whatsappPhone = patch.whatsappPhone;
+    return true;
+  }
 }
 
 class Raffles implements RaffleRepository {
@@ -61,6 +75,15 @@ class Raffles implements RaffleRepository {
       ? this.items.find((r) => r.orgId === organization.id && r.slug === raffleSlug)
       : undefined;
     return organization && raffle ? { organization, raffle } : null;
+  }
+  async update(orgId: string, raffleId: string, patch: Parameters<RaffleRepository["update"]>[2]) {
+    const raffle = await this.findById(orgId, raffleId);
+    if (!raffle) return false;
+    Object.assign(raffle, patch);
+    return true;
+  }
+  async listByOrg(orgId: string) {
+    return this.items.filter((r) => r.orgId === orgId);
   }
   async setStatus(orgId: string, raffleId: string, status: Raffle["status"]) {
     const raffle = await this.findById(orgId, raffleId);
@@ -241,6 +264,32 @@ class Tickets implements TicketRepository {
       .sort((a, b) => (a.dueDate ?? "").localeCompare(b.dueDate ?? "") || a.number - b.number);
   }
 
+  async findReservation(orgId: string, raffleId: string, code: string, now: string) {
+    return this.rows.filter(
+      (r) =>
+        r.orgId === orgId &&
+        r.raffleId === raffleId &&
+        r.status === "apartado" &&
+        r.reservationCode === code &&
+        (r.reservedUntil ?? "") > now,
+    );
+  }
+
+  async countByRaffle(orgId: string, now: string) {
+    const map = new Map<string, { reserved: number; sold: number; paid: number; owed: number }>();
+    for (const r of this.rows.filter((x) => x.orgId === orgId)) {
+      const c = map.get(r.raffleId) ?? { reserved: 0, sold: 0, paid: 0, owed: 0 };
+      if (r.status === "apartado" && (r.reservedUntil ?? "") > now) c.reserved++;
+      if (r.status === "vendido") {
+        c.sold++;
+        if (r.paymentStatus === "pagado") c.paid++;
+        if (r.paymentStatus === "debe") c.owed++;
+      }
+      map.set(r.raffleId, c);
+    }
+    return map;
+  }
+
   async listEvents(
     orgId: string,
     raffleId: string,
@@ -255,15 +304,59 @@ class Tickets implements TicketRepository {
   }
 }
 
+export class FakeAuth implements AuthRepository {
+  users: (UserWithHash & { orgId: string; role: "owner" | "admin" })[] = [];
+  sessions: Session[] = [];
+  failures: { email: string; ip: string; at: string }[] = [];
+  async findUserByEmail(email: string) {
+    return this.users.find((u) => u.email === email) ?? null;
+  }
+  async findMembership(userId: string) {
+    const u = this.users.find((x) => x.id === userId);
+    return u ? { orgId: u.orgId, role: u.role } : null;
+  }
+  async createSession(session: Session) {
+    this.sessions.push(session);
+  }
+  async findSession(id: string) {
+    const session = this.sessions.find((x) => x.id === id);
+    const u = session && this.users.find((x) => x.id === session.userId);
+    if (!session || !u) return null;
+    const user: User = { id: u.id, email: u.email, name: u.name };
+    return { ...session, user };
+  }
+  async deleteSession(id: string) {
+    this.sessions = this.sessions.filter((x) => x.id !== id);
+  }
+  async deleteExpired(now: string, attemptsBefore: string) {
+    this.sessions = this.sessions.filter((x) => x.expiresAt > now);
+    this.failures = this.failures.filter((f) => f.at >= attemptsBefore);
+  }
+  async recordFailedLogin(email: string, ip: string, at: string) {
+    this.failures.push({ email, ip, at });
+  }
+  async countFailedLogins(i: { email: string; ip: string; since: string }) {
+    const recent = this.failures.filter((f) => f.at >= i.since);
+    return {
+      byEmail: recent.filter((f) => f.email === i.email).length,
+      byIp: recent.filter((f) => f.ip === i.ip).length,
+    };
+  }
+  async clearFailedLogins(email: string) {
+    this.failures = this.failures.filter((f) => f.email !== email);
+  }
+}
+
 export function createTestDeps(start = new Date("2026-11-02T15:00:00.000Z")) {
   const clock = new FakeClock(start);
   const orgs = new Orgs();
   const raffles = new Raffles(orgs);
   const tickets = new Tickets();
+  const auth = new FakeAuth();
   let n = 0;
   const ids: IdGenerator = { uuid: () => `id-${++n}` };
   let c = 0;
   const codes: CodeGenerator = { reservationCode: () => `RF-TEST${++c}` };
-  const deps: Deps = { orgs, raffles, tickets, clock, ids, codes };
-  return { deps, clock, stores: { orgs, raffles, tickets } };
+  const deps: Deps = { auth, orgs, raffles, tickets, clock, ids, codes };
+  return { deps, clock, stores: { orgs, raffles, tickets, auth } };
 }
