@@ -121,7 +121,13 @@ describe("administración de rifas", () => {
   it("estadísticas por rifa con montos", async () => {
     const { deps, org, raffle } = await setup();
     const ids = { orgId: org.id, raffleId: raffle.id };
-    await reserveTickets(deps, { orgSlug: "finaura", raffleSlug: "navidad", numbers: [1, 2] });
+    await reserveTickets(deps, {
+      orgSlug: "finaura",
+      clientId: "c1",
+      raffleSlug: "navidad",
+
+      numbers: [1, 2],
+    });
     await markSold(deps, { ...ids, number: 10, payment: { status: "pagado" } });
     await markSold(deps, {
       ...ids,
@@ -151,7 +157,13 @@ describe("administración de rifas", () => {
 
   it("los apartados vencidos no cuentan como apartados", async () => {
     const { deps, clock, org, raffle } = await setup();
-    await reserveTickets(deps, { orgSlug: "finaura", raffleSlug: "navidad", numbers: [1] });
+    await reserveTickets(deps, {
+      orgSlug: "finaura",
+      clientId: "c1",
+      raffleSlug: "navidad",
+
+      numbers: [1],
+    });
     clock.advance(RESERVATION_TTL_MS);
     const d = await getRaffleWithStats(deps, { orgId: org.id, raffleId: raffle.id });
     expect(d.ok && d.value.stats.reserved).toBe(0);
@@ -210,6 +222,7 @@ describe("administración de rifas", () => {
     const ids = { orgId: org.id, raffleId: raffle.id };
     const r = await reserveTickets(deps, {
       orgSlug: "finaura",
+      clientId: "c1",
       raffleSlug: "navidad",
       numbers: [4, 5, 6],
     });
@@ -233,6 +246,7 @@ describe("administración de rifas", () => {
     // fecha inválida: no vende nada
     const r2 = await reserveTickets(deps, {
       orgSlug: "finaura",
+      clientId: "c1",
       raffleSlug: "navidad",
       numbers: [7],
     });

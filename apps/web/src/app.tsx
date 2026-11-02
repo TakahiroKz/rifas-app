@@ -4,6 +4,8 @@ import { Link, Route, Switch } from "wouter-preact";
 import { api, setUnauthorizedHandler } from "./api";
 import { Login } from "./pages/Login";
 import { OrgSettings } from "./pages/OrgSettings";
+import { Privacy } from "./pages/Privacy";
+import { PublicRaffle } from "./pages/PublicRaffle";
 import { RaffleDetail } from "./pages/RaffleDetail";
 import { RaffleList } from "./pages/RaffleList";
 import { RaffleNew } from "./pages/RaffleNew";
@@ -15,6 +17,12 @@ export function App() {
     <ToastProvider>
       <Switch>
         <Route path="/admin/*?" component={AdminApp} />
+        <Route path="/r/:org/:raffle/privacidad">
+          {(p) => <Privacy org={p.org} raffle={p.raffle} />}
+        </Route>
+        <Route path="/r/:org/:raffle">
+          {(p) => <PublicRaffle org={p.org} raffle={p.raffle} />}
+        </Route>
         <Route component={Home} />
       </Switch>
     </ToastProvider>
@@ -25,7 +33,9 @@ function Home() {
   return (
     <main class="mx-auto max-w-md p-6 text-center">
       <h1 class="text-2xl font-bold">Tu Rifa</h1>
-      <p class="mt-2 text-sm text-slate-600">La página pública de rifas llegará pronto.</p>
+      <p class="mt-2 text-sm text-slate-600">
+        Para participar, usa el enlace de la rifa que te compartieron.
+      </p>
       <Link href="/admin" class="mt-4 inline-block text-sm text-indigo-700 underline">
         Administración
       </Link>

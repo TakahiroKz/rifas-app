@@ -37,6 +37,8 @@ export const publicRaffleResponseSchema = z.object({
     ticketPrice: z.number().int().nullable(),
     drawDate: z.string().nullable(),
   }),
+  /** Clave pública de Turnstile; null si la verificación no está activa. */
+  turnstileSiteKey: z.string().nullable(),
 });
 export type PublicRaffleResponse = z.infer<typeof publicRaffleResponseSchema>;
 
@@ -53,6 +55,8 @@ export type PublicTicketsResponse = z.infer<typeof publicTicketsResponseSchema>;
 
 export const reserveRequestSchema = z.object({
   numbers: z.array(z.number().int().nonnegative()).min(1),
+  /** Token de Turnstile (obligatorio cuando la verificación está activa). */
+  turnstileToken: z.string().max(2048).optional(),
 });
 export type ReserveRequest = z.infer<typeof reserveRequestSchema>;
 

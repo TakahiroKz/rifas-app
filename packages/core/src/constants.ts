@@ -5,3 +5,5 @@ export const MAX_NUMBERS_PER_RESERVATION = 10;
 export const MAX_NAME_LENGTH = 80;
 export const MAX_NOTE_LENGTH = 300;
 export const HISTORY_PAGE_SIZE = 100;
+/** Máximo de números apartados (vigentes) por cliente en una misma rifa. Evita acaparar todos los números. */
+export const MAX_ACTIVE_RESERVED_PER_CLIENT = 30;

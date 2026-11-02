@@ -6,6 +6,10 @@ declare global {
       DB: D1Database;
       ASSETS: Fetcher;
       TEST_MIGRATIONS: D1Migration[];
+      REQUIRE_TURNSTILE?: string;
+      TURNSTILE_SECRET?: string;
+      TURNSTILE_SITE_KEY?: string;
+      RESERVE_LIMITER?: RateLimit;
     }
   }
 }

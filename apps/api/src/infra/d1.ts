@@ -12,6 +12,7 @@ import type {
   RaffleRepository,
   RaffleStatus,
   ReserveInput,
+  ReserveOutcome,
   Session,
   TicketEvent,
   TicketRecord,
@@ -320,25 +321,45 @@ export class D1TicketRepository implements TicketRepository {
   }
 
   /**
-   * Reserva todo-o-nada. La sentencia de inserción se ejecuta en una sola operación atómica:
-   * solo inserta si NINGUNO de los números tiene fila (tras limpiar los apartados vencidos).
+   * Reserva todo-o-nada. La inserción es una sola sentencia atómica: solo ocurre si NINGUNO de los
+   * números tiene fila (tras limpiar los vencidos) y el cliente no pasa su tope de apartados vigentes.
    */
-  async reserve(i: ReserveInput) {
+  async reserve(i: ReserveInput): Promise<ReserveOutcome> {
     const json = JSON.stringify(i.numbers);
     const results = await this.db.batch([
       ...this.expireStatements(i.raffleId, i.numbers, i.now),
       this.db
         .prepare(
           `INSERT INTO tickets (raffle_id, number, org_id, status, reservation_code,
-                                reserved_at, reserved_until, updated_at)
-           SELECT ?, value, ?, 'apartado', ?, ?, ?, ?
+                                reserved_at, reserved_until, updated_at, reserved_by)
+           SELECT ?, value, ?, 'apartado', ?, ?, ?, ?, ?
              FROM json_each(?)
             WHERE NOT EXISTS (
               SELECT 1 FROM tickets
                WHERE raffle_id = ? AND number IN (SELECT value FROM json_each(?))
-            )`,
+            )
+              AND (
+                SELECT COUNT(*) FROM tickets
+                 WHERE raffle_id = ? AND reserved_by = ? AND status = 'apartado' AND reserved_until > ?
+              ) + ? <= ?`,
         )
-        .bind(i.raffleId, i.orgId, i.code, i.now, i.until, i.now, json, i.raffleId, json),
+        .bind(
+          i.raffleId,
+          i.orgId,
+          i.code,
+          i.now,
+          i.until,
+          i.now,
+          i.clientKey,
+          json,
+          i.raffleId,
+          json,
+          i.raffleId,
+          i.clientKey,
+          i.now,
+          i.numbers.length,
+          i.maxActivePerClient,
+        ),
       this.db
         .prepare(
           `INSERT INTO ticket_events (${EVENT_COLUMNS})
@@ -350,7 +371,7 @@ export class D1TicketRepository implements TicketRepository {
     ]);
 
     const inserted = results[2]?.meta.changes ?? 0;
-    if (inserted === i.numbers.length) return { ok: true as const };
+    if (inserted === i.numbers.length) return { ok: true };
 
     const { results: taken } = await this.db
       .prepare(
@@ -360,7 +381,9 @@ export class D1TicketRepository implements TicketRepository {
       )
       .bind(i.raffleId, json)
       .all<{ number: number }>();
-    return { ok: false as const, unavailable: taken.map((r) => r.number) };
+    // Si ninguno está tomado, lo que frenó la reserva fue el tope del cliente.
+    if (taken.length === 0) return { ok: false, reason: "limit" };
+    return { ok: false, reason: "unavailable", unavailable: taken.map((r) => r.number) };
   }
 
   async markSold(i: MarkSoldInput) {

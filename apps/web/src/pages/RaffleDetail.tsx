@@ -8,7 +8,8 @@ import { ReservationSearch } from "../components/ReservationSearch";
 import { SettingsTab } from "../components/SettingsTab";
 import { TicketDialog } from "../components/TicketDialog";
 import { formatMoney, plural } from "../format";
-import { Badge, ErrorBox, useAsync, useToast } from "../ui";
+import { useSession } from "../session";
+import { Badge, Button, ErrorBox, useAsync, useToast } from "../ui";
 
 type Tab = "numeros" | "deudas" | "historial" | "ajustes";
 const TABS: [Tab, string][] = [
@@ -21,6 +22,7 @@ const statusTone = { borrador: "slate", activa: "green", cerrada: "amber" } as c
 
 export function RaffleDetail({ id }: { id: string }) {
   const toast = useToast();
+  const { session } = useSession();
   const [tab, setTab] = useState<Tab>("numeros");
   const [selected, setSelected] = useState<number | null>(null);
   const [version, setVersion] = useState(0);
@@ -66,6 +68,14 @@ export function RaffleDetail({ id }: { id: string }) {
           )}
         </p>
       </div>
+
+      {r.status === "activa" ? (
+        <PublicLink url={`${location.origin}/r/${session.organization.slug}/${r.slug}`} />
+      ) : (
+        <p class="text-xs text-slate-500">
+          La rifa es pública cuando su estado es <b>activa</b> (se cambia en Ajustes).
+        </p>
+      )}
 
       <nav class="flex gap-1 border-b border-slate-200" aria-label="Secciones">
         {TABS.map(([key, label]) => (
@@ -120,6 +130,34 @@ export function RaffleDetail({ id }: { id: string }) {
           }}
         />
       )}
+    </div>
+  );
+}
+
+function PublicLink({ url }: { url: string }) {
+  const toast = useToast();
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast("Enlace copiado");
+    } catch {
+      toast("No se pudo copiar; selecciónalo y cópialo a mano");
+    }
+  }
+  return (
+    <div class="flex flex-wrap items-center gap-2 rounded-lg bg-white p-2 text-sm ring-1 ring-slate-200">
+      <span class="text-slate-500">Enlace público:</span>
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        class="min-w-0 flex-1 truncate text-indigo-700 underline"
+      >
+        {url}
+      </a>
+      <Button variant="secondary" onClick={copy}>
+        Copiar
+      </Button>
     </div>
   );
 }

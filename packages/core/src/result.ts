@@ -6,7 +6,8 @@ export type ErrorCode =
   | "slug_taken"
   | "invalid_state"
   | "unauthorized"
-  | "too_many_attempts";
+  | "too_many_attempts"
+  | "too_many_reservations";
 
 export interface DomainError {
   code: ErrorCode;

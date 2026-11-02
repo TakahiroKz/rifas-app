@@ -1,6 +1,6 @@
 # Plan: Plataforma de rifas (microSaaS)
 
-> Estado: Fase 2 completada. Última actualización: 2026-11-02. Repo: `TakahiroKz/rifas-app`.
+> Estado: Fase 3 completada. Última actualización: 2026-11-02. Repo: `TakahiroKz/rifas-app`.
 
 ## 1. Visión
 Plataforma para gestionar **los números de una rifa** (sin pagos en línea) y, además, **consultar resultados de loterías y sorteos** (Colombia y otros países) para anunciar ganadores.
@@ -147,7 +147,7 @@ Sí se pueden usar **varios dominios**: Cloudflare Pages permite agregar varios 
 1. **Fase 0 – Repo y tooling** ✅ (base D1 de producción creada y con migraciones; falta el despliegue): monorepo pnpm, TypeScript, Biome, Vitest, CI, `.env.example`, proyecto Cloudflare (Worker + D1) y dominio.
 2. **Fase 1 – Núcleo** ✅: esquema D1 multi-tenant, dominio y casos de uso, reserva atómica, expiración a 24 h, historial y API pública, con 51 pruebas (incluye concurrencia y aislamiento entre organizaciones).
 3. **Fase 2 – Admin** ✅: login con sesiones seguras, CRUD de rifas, tablero de números, vender como pagado o debe con fecha, venta por código de apartado, listado de deudas, historial y ajustes. 88 pruebas automáticas más verificación de punta a punta en un navegador real.
-4. **Fase 3 – Público**: cuadrícula, selección, apartado + WhatsApp, política de privacidad enlazada.
+4. **Fase 3 – Público** ✅: página pública, selección, apartado + WhatsApp con código, política de privacidad (preliminar), Turnstile, límite de tasa, tope por cliente y encabezados de seguridad. 114 pruebas automáticas + flujo completo verificado en navegador.
 5. **Fase 4 – Loterías**: modelo de resultados, 2–3 adaptadores de Colombia, entrada manual, vinculación a rifa y sugerencia de ganador.
 6. **Fase 5 – Pulido**: estadísticas, CSV, alertas de deuda vencida, despliegue y dominio.
 7. **Fase 6 – SaaS**: registro abierto, organizaciones, límites/planes, dominios por cliente, términos y condiciones.
@@ -182,3 +182,13 @@ Ver [`ARQUITECTURA.md`](ARQUITECTURA.md): monorepo modular (`apps/api`, `apps/we
 2. ¿Ya cuentas con el permiso/autorización para tus rifas? (quien organiza la rifa sí lo necesita)
 3. Las variantes de domingo/festivo (*Chontico Festivo Noche*, *Dorado Festivo*): se tratan como el mismo juego (supuesto actual).
 4. Respaldos: ¿alcanza una exportación diaria a R2 o prefieres otro destino?
+
+## 14. Lista previa a publicar (lanzamiento)
+Pendiente de Leo / de revisión legal antes de abrir `turifa.capitalfinaura.com` al público:
+- [ ] **Turnstile**: crear el widget (Cloudflare → Turnstile, hostname `turifa.capitalfinaura.com`), poner la clave pública en `TURNSTILE_SITE_KEY` (`wrangler.jsonc`) y el secreto con `wrangler secret put TURNSTILE_SECRET`.
+- [ ] **Política de privacidad**: revisión de un abogado; luego poner `PRIVACY_POLICY_REVIEWED = true` (`apps/web/src/pages/Privacy.tsx`) para quitar el aviso de «versión preliminar».
+- [ ] **Permiso de las rifas** ante la autoridad competente (Ley 643 de 2001) — a cargo del organizador.
+- [ ] **Gane**: autorización por escrito (solo para la Fase 4).
+- [ ] **Despliegue**: agregar secretos `CLOUDFLARE_API_TOKEN` y `CLOUDFLARE_ACCOUNT_ID` en GitHub; activar la ruta `turifa.capitalfinaura.com` en `wrangler.jsonc`; aplicar migraciones al remoto; crear el administrador con `pnpm admin:create ... --remote`.
+- [ ] **R2** habilitado (respaldos, Fase 5).
+- [ ] Regla de límite de tasa adicional en la zona (WAF) como segunda capa — opcional.

@@ -106,7 +106,7 @@ describe("rifas", () => {
 describe("apartar (zona pública)", () => {
   it("aparta por 24 h con código y deja historial", async () => {
     const { deps, clock, raffle } = await setup();
-    const r = await reserveTickets(deps, { ...pub, numbers: [23, 7, 85] });
+    const r = await reserveTickets(deps, { ...pub, clientId: "c1", numbers: [23, 7, 85] });
     if (!r.ok) throw new Error(r.error.message);
     expect(r.value.numbers).toEqual([7, 23, 85]);
     expect(r.value.code).toBe("RF-TEST1");
@@ -126,8 +126,8 @@ describe("apartar (zona pública)", () => {
 
   it("es todo o nada: si uno está tomado no aparta ninguno", async () => {
     const { deps } = await setup();
-    await reserveTickets(deps, { ...pub, numbers: [5] });
-    const r = await reserveTickets(deps, { ...pub, numbers: [4, 5, 6] });
+    await reserveTickets(deps, { ...pub, clientId: "c1", numbers: [5] });
+    const r = await reserveTickets(deps, { ...pub, clientId: "c1", numbers: [4, 5, 6] });
     expect(r.ok).toBe(false);
     if (!r.ok) {
       expect(r.error.code).toBe("numbers_unavailable");
@@ -148,15 +148,20 @@ describe("apartar (zona pública)", () => {
     ["más de 10", [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]],
   ])("rechaza entrada inválida: %s", async (_name, numbers) => {
     const { deps } = await setup();
-    const r = await reserveTickets(deps, { ...pub, numbers });
+    const r = await reserveTickets(deps, { ...pub, clientId: "c1", numbers });
     expect(r.ok ? null : r.error.code).toBe("invalid_input");
   });
 
   it("no aparta en rifas inactivas ni inexistentes", async () => {
     const { deps } = await setup(100, "borrador");
-    const r1 = await reserveTickets(deps, { ...pub, numbers: [1] });
+    const r1 = await reserveTickets(deps, { ...pub, clientId: "c1", numbers: [1] });
     expect(r1.ok ? null : r1.error.code).toBe("raffle_not_active");
-    const r2 = await reserveTickets(deps, { orgSlug: "finaura", raffleSlug: "nope", numbers: [1] });
+    const r2 = await reserveTickets(deps, {
+      orgSlug: "finaura",
+      raffleSlug: "nope",
+      clientId: "c1",
+      numbers: [1],
+    });
     expect(r2.ok ? null : r2.error.code).toBe("not_found");
     const r3 = await getPublicRaffle(deps, pub);
     expect(r3.ok).toBe(false);
@@ -164,18 +169,18 @@ describe("apartar (zona pública)", () => {
 
   it("un apartado vencido vuelve a estar disponible aunque el cron no haya corrido", async () => {
     const { deps, clock } = await setup();
-    await reserveTickets(deps, { ...pub, numbers: [9] });
+    await reserveTickets(deps, { ...pub, clientId: "c1", numbers: [9] });
     clock.advance(RESERVATION_TTL_MS - 1);
-    expect((await reserveTickets(deps, { ...pub, numbers: [9] })).ok).toBe(false);
+    expect((await reserveTickets(deps, { ...pub, clientId: "c1", numbers: [9] })).ok).toBe(false);
     clock.advance(1);
     const list = await listPublicTickets(deps, pub);
     expect(list.ok && list.value).toEqual([]);
-    expect((await reserveTickets(deps, { ...pub, numbers: [9] })).ok).toBe(true);
+    expect((await reserveTickets(deps, { ...pub, clientId: "c1", numbers: [9] })).ok).toBe(true);
   });
 
   it("el cron persiste la caducidad en el historial", async () => {
     const { deps, clock, raffle } = await setup();
-    await reserveTickets(deps, { ...pub, numbers: [1, 2] });
+    await reserveTickets(deps, { ...pub, clientId: "c1", numbers: [1, 2] });
     clock.advance(RESERVATION_TTL_MS);
     expect(await expireReservations(deps)).toBe(2);
     expect(await expireReservations(deps)).toBe(0);
@@ -226,7 +231,7 @@ describe("administración", () => {
   it("vender un número apartado conserva el código y registra la transición", async () => {
     const { deps, raffle } = await setup();
     const ids = { orgId: raffle.orgId, raffleId: raffle.id };
-    await reserveTickets(deps, { ...pub, numbers: [42] });
+    await reserveTickets(deps, { ...pub, clientId: "c1", numbers: [42] });
     await markSold(deps, { ...ids, number: 42, payment: { status: "pagado" } });
     const rows = await listAdminTickets(deps, ids);
     expect(rows.ok && rows.value[0]).toMatchObject({
@@ -241,7 +246,7 @@ describe("administración", () => {
       "activo>apartado",
     ]);
     // ya no se puede apartar
-    expect((await reserveTickets(deps, { ...pub, numbers: [42] })).ok).toBe(false);
+    expect((await reserveTickets(deps, { ...pub, clientId: "c1", numbers: [42] })).ok).toBe(false);
   });
 
   it("cambia de debe a pagado y solo si está vendido", async () => {
@@ -264,7 +269,7 @@ describe("administración", () => {
     expect((await releaseTicket(deps, { ...ids, number: 8 })).ok).toBe(true);
     const again = await releaseTicket(deps, { ...ids, number: 8 });
     expect(again.ok ? null : again.error.code).toBe("invalid_state");
-    expect((await reserveTickets(deps, { ...pub, numbers: [8] })).ok).toBe(true);
+    expect((await reserveTickets(deps, { ...pub, clientId: "c1", numbers: [8] })).ok).toBe(true);
   });
 
   it("valida el rango y aísla por organización", async () => {
@@ -283,5 +288,50 @@ describe("administración", () => {
     ]) {
       expect(r.ok ? null : r.error.code).toBe("not_found");
     }
+  });
+});
+
+describe("límite de apartados por cliente", () => {
+  const tenNumbers = (from: number) => Array.from({ length: 10 }, (_, i) => from + i);
+
+  it("un cliente no puede tener más de 30 números apartados a la vez; no aparta nada si se pasa", async () => {
+    const { deps } = await setup(200);
+    for (const from of [0, 10, 20]) {
+      const r = await reserveTickets(deps, { ...pub, clientId: "ip-1", numbers: tenNumbers(from) });
+      expect(r.ok).toBe(true);
+    }
+    const over = await reserveTickets(deps, { ...pub, clientId: "ip-1", numbers: [100] });
+    expect(over.ok ? null : over.error.code).toBe("too_many_reservations");
+    expect(over.ok ? null : over.error.details).toEqual({ max: 30 });
+    const list = await listPublicTickets(deps, pub);
+    expect(list.ok && list.value).toHaveLength(30); // el 100 no quedó apartado
+  });
+
+  it("otro cliente no se ve afectado", async () => {
+    const { deps } = await setup(200);
+    for (const from of [0, 10, 20])
+      await reserveTickets(deps, { ...pub, clientId: "ip-1", numbers: tenNumbers(from) });
+    expect((await reserveTickets(deps, { ...pub, clientId: "ip-2", numbers: [150] })).ok).toBe(
+      true,
+    );
+  });
+
+  it("al vencer los apartados o venderse, el cupo se libera", async () => {
+    const { deps, clock } = await setup(200);
+    for (const from of [0, 10, 20])
+      await reserveTickets(deps, { ...pub, clientId: "ip-1", numbers: tenNumbers(from) });
+    clock.advance(RESERVATION_TTL_MS);
+    expect(
+      (await reserveTickets(deps, { ...pub, clientId: "ip-1", numbers: tenNumbers(50) })).ok,
+    ).toBe(true);
+  });
+
+  it("si los números están tomados responde 'no disponibles', no 'demasiados'", async () => {
+    const { deps } = await setup(200);
+    for (const from of [0, 10, 20])
+      await reserveTickets(deps, { ...pub, clientId: "ip-1", numbers: tenNumbers(from) });
+    await reserveTickets(deps, { ...pub, clientId: "ip-2", numbers: [90] });
+    const r = await reserveTickets(deps, { ...pub, clientId: "ip-1", numbers: [90] });
+    expect(r.ok ? null : r.error.code).toBe("numbers_unavailable");
   });
 });

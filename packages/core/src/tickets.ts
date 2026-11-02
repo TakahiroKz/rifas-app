@@ -1,5 +1,6 @@
 import {
   HISTORY_PAGE_SIZE,
+  MAX_ACTIVE_RESERVED_PER_CLIENT,
   MAX_NAME_LENGTH,
   MAX_NOTE_LENGTH,
   MAX_NUMBERS_PER_RESERVATION,
@@ -8,6 +9,7 @@ import {
 import type { Deps } from "./deps";
 import { isNumberInRange } from "./numbers";
 import { fail, ok, type Result } from "./result";
+import { hashToken } from "./session-token";
 import type {
   Buyer,
   Organization,
@@ -76,10 +78,13 @@ export function parseNumbers(input: unknown, totalNumbers: number): Result<numbe
   return ok(numbers.sort((a, b) => a - b));
 }
 
-/** Aparta números de forma atómica por 24 horas. */
+/**
+ * Aparta números de forma atómica por 24 horas.
+ * `clientId` identifica a quien aparta (p. ej. su IP); solo se guarda su hash, nunca el valor.
+ */
 export async function reserveTickets(
   deps: Deps,
-  input: { orgSlug: string; raffleSlug: string; numbers: unknown },
+  input: { orgSlug: string; raffleSlug: string; numbers: unknown; clientId: string },
 ): Promise<Result<ReservationResult>> {
   const found = await findActiveRaffle(deps, input.orgSlug, input.raffleSlug);
   if (!found.ok) return found;
@@ -100,8 +105,17 @@ export async function reserveTickets(
     code,
     now: reservedAt,
     until: reservedUntil,
+    clientKey: await hashToken(`${raffle.id}:${input.clientId}`),
+    maxActivePerClient: MAX_ACTIVE_RESERVED_PER_CLIENT,
   });
   if (!result.ok) {
+    if (result.reason === "limit") {
+      return fail(
+        "too_many_reservations",
+        `Ya tienes muchos números apartados (máximo ${MAX_ACTIVE_RESERVED_PER_CLIENT}). Completa esos apartados o espera a que venzan`,
+        { max: MAX_ACTIVE_RESERVED_PER_CLIENT },
+      );
+    }
     return fail("numbers_unavailable", "Algunos números ya no están disponibles", {
       unavailable: result.unavailable,
     });

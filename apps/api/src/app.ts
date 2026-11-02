@@ -3,28 +3,41 @@ import type { Deps } from "@rifas/core";
 import { Hono } from "hono";
 import { adminRoutes } from "./http/admin";
 import { publicRoutes } from "./http/public";
+import { securityHeaders } from "./http/security";
 import { createDeps } from "./infra/deps";
 
 export type Env = {
   ASSETS: Fetcher;
   DB: D1Database;
+  /** "true" exige Turnstile al apartar. Falla cerrado: sin TURNSTILE_SECRET responde 503. */
+  REQUIRE_TURNSTILE?: string;
+  TURNSTILE_SECRET?: string;
+  /** Clave pública (no secreta) del widget de Turnstile. */
+  TURNSTILE_SITE_KEY?: string;
+  /** Límite de tasa de Cloudflare por IP (opcional). */
+  RESERVE_LIMITER?: RateLimit;
 };
 
 export type AppEnv = {
   Bindings: Env;
-  Variables: { deps: Deps };
+  Variables: { deps: Deps; turnstileFetch: typeof fetch | undefined };
 };
 
 export interface AppOptions {
   /** Solo pruebas: sustituye reloj, ids o códigos. */
   overrides?: Partial<Deps>;
+  /** Solo pruebas: sustituye el `fetch` usado para verificar Turnstile. */
+  turnstileFetch?: typeof fetch;
 }
 
 export function createApp(options: AppOptions = {}) {
   const app = new Hono<AppEnv>();
 
+  app.use("*", securityHeaders);
+
   app.use("/api/*", async (c, next) => {
     c.set("deps", createDeps(c.env.DB, options.overrides));
+    c.set("turnstileFetch", options.turnstileFetch);
     await next();
   });
 

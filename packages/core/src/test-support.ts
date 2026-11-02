@@ -94,7 +94,7 @@ class Raffles implements RaffleRepository {
 }
 
 class Tickets implements TicketRepository {
-  rows: (TicketRecord & { orgId: string })[] = [];
+  rows: (TicketRecord & { orgId: string; reservedBy?: string })[] = [];
   events: (TicketEvent & { orgId: string })[] = [];
   private nextId = 1;
 
@@ -139,7 +139,17 @@ class Tickets implements TicketRepository {
   async reserve(i: ReserveInput) {
     this.expireRows(i.now, { raffleId: i.raffleId, numbers: i.numbers });
     const unavailable = i.numbers.filter((n) => this.find(i.raffleId, n));
-    if (unavailable.length > 0) return { ok: false as const, unavailable };
+    if (unavailable.length > 0)
+      return { ok: false as const, reason: "unavailable" as const, unavailable };
+    const active = this.rows.filter(
+      (r) =>
+        r.raffleId === i.raffleId &&
+        r.status === "apartado" &&
+        r.reservedBy === i.clientKey &&
+        (r.reservedUntil ?? "") > i.now,
+    ).length;
+    if (active + i.numbers.length > i.maxActivePerClient)
+      return { ok: false as const, reason: "limit" as const };
     for (const number of i.numbers) {
       this.rows.push({
         orgId: i.orgId,
@@ -156,6 +166,7 @@ class Tickets implements TicketRepository {
         reservedUntil: i.until,
         soldAt: null,
         updatedAt: i.now,
+        reservedBy: i.clientKey,
       });
       this.log(
         { orgId: i.orgId, raffleId: i.raffleId, number, reservationCode: i.code },

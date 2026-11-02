@@ -13,6 +13,7 @@ const STATUS: Record<ErrorCode, HttpStatus> = {
   invalid_state: 409,
   unauthorized: 401,
   too_many_attempts: 429,
+  too_many_reservations: 429,
 };
 
 export function toHttpError(error: DomainError): { status: HttpStatus; body: ErrorResponse } {

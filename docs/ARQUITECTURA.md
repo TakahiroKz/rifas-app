@@ -131,13 +131,17 @@ Adaptador inicial: `GaneSource` (ver [`GANE-API.md`](GANE-API.md)). Resuelve var
 - **Alta de administradores**: no hay registro abierto. Se crean con `pnpm admin:create` (ver README); la contraseña se pide oculta y nunca queda en el historial del shell.
 - El Cron limpia sesiones caducadas e intentos fallidos antiguos.
 
-**Público**
-- **Cloudflare Turnstile** + límite de tasa en `POST …/reservations` (pendiente, Fase 3); máximo de números por solicitud.
+**Público (implementado en la Fase 3)** — capas contra abuso en `POST …/reservations`, en este orden:
+1. **Límite de tasa por IP** (binding `RESERVE_LIMITER`, 20/minuto) → `429 rate_limited`.
+2. **Turnstile** (anti-robots). **Falla cerrado**: con `REQUIRE_TURNSTILE=true` (valor de producción) un token ausente da `400`, inválido `403`, y si Cloudflare no responde o falta el secreto `503`; nunca se aparta sin verificar.
+3. **Tope por solicitud**: máx. 10 números.
+4. **Tope por cliente**: máx. 30 números apartados vigentes por rifa. Se aplica **dentro de la misma sentencia atómica** de reserva. El cliente se identifica con un **hash** de su IP (nunca se guarda la IP) → `429 too_many_reservations`.
+Además: encabezados de seguridad en el API (`nosniff`, `no-referrer`, `X-Frame-Options`, `CORP`) y en la web (`_headers`: CSP estricta que solo admite `challenges.cloudflare.com` para Turnstile).
 
 **General**
 - Validación de toda entrada con zod y en el dominio; consultas siempre parametrizadas.
 - Secretos solo como *secrets* de Cloudflare; `.env.example` sin valores reales.
-- Encabezados: CSP estricta, `X-Content-Type-Options`, `Referrer-Policy` (pendiente, antes de publicar).
+- Encabezados de seguridad y CSP: implementados (ver arriba).
 
 ### 5.8 Tiempo
 Todo se guarda en **UTC** (ISO 8601). Las fechas de sorteo y vencimientos se muestran en `America/Bogota`.
@@ -148,7 +152,7 @@ Se construye en el frontend con la respuesta de la reserva: `https://wa.me/<tel>
 ## 6. API (REST JSON, `/api/v1`)
 | Zona | Rutas | Estado |
 |---|---|---|
-| Pública | `GET /public/:org/:rifa` · `GET /public/:org/:rifa/tickets` · `POST /public/:org/:rifa/reservations` | ✅ Fase 1 |
+| Pública | `GET /public/:org/:rifa` · `GET /public/:org/:rifa/tickets` · `POST /public/:org/:rifa/reservations` | ✅ Fases 1 y 3 |
 | Sesión | `POST /admin/login` · `POST /admin/logout` · `GET /admin/session` · `PATCH /admin/organization` | ✅ Fase 2 |
 | Rifas | `GET/POST /admin/raffles` · `GET/PATCH /admin/raffles/:id` | ✅ Fase 2 |
 | Números | `GET …/tickets` · `PUT …/tickets/:n/sale` · `PATCH …/tickets/:n/payment` · `DELETE …/tickets/:n` | ✅ Fase 2 |
@@ -159,8 +163,12 @@ Se construye en el frontend con la respuesta de la reserva: `https://wa.me/<tel>
 - La zona pública **no expone datos del comprador ni deudas**; solo `{ number, status }` de los números no disponibles.
 - Una rifa que no está `activa` responde `404` igual que una inexistente.
 - Toda la zona `/admin` exige sesión y responde con `Cache-Control: no-store`.
-- Errores: `{ error: { code, message, details? } }` (`invalid_input` 400 · `unauthorized` 401 · `forbidden` 403 · `not_found` 404 · `numbers_unavailable`/`slug_taken`/`invalid_state` 409 · `too_many_attempts` 429).
-- Pendiente en la ruta de apartado (Fase 3): Turnstile y límite de tasa.
+- Errores: `{ error: { code, message, details? } }` (`invalid_input` 400 · `unauthorized` 401 · `forbidden` 403 · `not_found` 404 · `numbers_unavailable`/`slug_taken`/`invalid_state` 409 · `too_many_attempts`/`too_many_reservations`/`rate_limited` 429 · `captcha_required` 400 · `captcha_failed` 403 · `captcha_unavailable` 503).
+- La ruta de apartado aplica las protecciones descritas en §5.7.
+
+## Página pública (`apps/web`)
+Rutas: `/r/:org/:rifa` (elegir y apartar) y `/r/:org/:rifa/privacidad`. Tablero paginado de 200 en 200, filtro «solo disponibles», búsqueda de número, «al azar», máximo 10 por solicitud, total en pesos, refresco automático cada 30 s y al volver a la pestaña.
+Al apartar: se verifica Turnstile, se reserva de forma atómica y se abre `https://wa.me/<teléfono sin +>?text=<mensaje>` con los números, el código de apartado, su vigencia y el enlace a la política de privacidad. Si el navegador bloquea la ventana, el panel de éxito ofrece el botón «Abrir WhatsApp». Si otro cliente ganó un número, se avisa y se refresca el tablero.
 
 ## Panel de administración (`apps/web`)
 SPA en `/admin`: ingreso, lista de rifas con avance y montos, creación de rifa, tablero de números (páginas de 200, salto directo a un número), venta pagada o con deuda y fecha, búsqueda de apartado por código para vender todos sus números de una vez, listado de deudas ordenado por fecha, historial paginado y ajustes (rifa y WhatsApp de la organización). Un apartado vencido se muestra como activo aunque el Cron aún no lo haya limpiado.

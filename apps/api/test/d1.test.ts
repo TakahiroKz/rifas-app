@@ -29,7 +29,7 @@ describe("D1: apartar", () => {
   it("aparta por 24 h, lista solo no disponibles y deja historial", async () => {
     const { deps, clock } = makeDeps();
     const { raffle, org } = await seedRaffle(deps);
-    const r = await reserveTickets(deps, { ...pub, numbers: [23, 7] });
+    const r = await reserveTickets(deps, { ...pub, clientId: "c1", numbers: [23, 7] });
     if (!r.ok) throw new Error(r.error.message);
     expect(r.value.numbers).toEqual([7, 23]);
     expect(Date.parse(r.value.reservedUntil) - clock.now().getTime()).toBe(RESERVATION_TTL_MS);
@@ -51,8 +51,8 @@ describe("D1: apartar", () => {
   it("es todo o nada", async () => {
     const { deps } = makeDeps();
     const { raffle } = await seedRaffle(deps);
-    await reserveTickets(deps, { ...pub, numbers: [5] });
-    const r = await reserveTickets(deps, { ...pub, numbers: [4, 5, 6] });
+    await reserveTickets(deps, { ...pub, clientId: "c1", numbers: [5] });
+    const r = await reserveTickets(deps, { ...pub, clientId: "c1", numbers: [4, 5, 6] });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error.details).toEqual({ unavailable: [5] });
     expect((await rows(raffle.id)).map((x) => x.number)).toEqual([5]);
@@ -62,7 +62,9 @@ describe("D1: apartar", () => {
     const { deps } = makeDeps();
     const { raffle } = await seedRaffle(deps);
     const results = await Promise.all(
-      Array.from({ length: 20 }, () => reserveTickets(deps, { ...pub, numbers: [5, 6] })),
+      Array.from({ length: 20 }, () =>
+        reserveTickets(deps, { ...pub, clientId: "c1", numbers: [5, 6] }),
+      ),
     );
     expect(results.filter((r) => r.ok)).toHaveLength(1);
     const stored = await rows(raffle.id);
@@ -90,7 +92,7 @@ describe("D1: apartar", () => {
       [2, 4, 6, 8],
     ];
     const results = await Promise.all(
-      requests.map((numbers) => reserveTickets(deps, { ...pub, numbers })),
+      requests.map((numbers) => reserveTickets(deps, { ...pub, clientId: "c1", numbers })),
     );
     const winners = results.flatMap((r) => (r.ok ? [r.value] : []));
     expect(winners.length).toBeGreaterThan(0);
@@ -108,13 +110,13 @@ describe("D1: expiración", () => {
   it("un apartado vencido se ignora al consultar y se puede volver a apartar (con evento de caducidad)", async () => {
     const { deps, clock } = makeDeps();
     const { raffle, org } = await seedRaffle(deps);
-    await reserveTickets(deps, { ...pub, numbers: [9] });
+    await reserveTickets(deps, { ...pub, clientId: "c1", numbers: [9] });
     clock.advance(RESERVATION_TTL_MS - 1);
-    expect((await reserveTickets(deps, { ...pub, numbers: [9] })).ok).toBe(false);
+    expect((await reserveTickets(deps, { ...pub, clientId: "c1", numbers: [9] })).ok).toBe(false);
     clock.advance(1);
     const list = await listPublicTickets(deps, pub);
     expect(list.ok && list.value).toEqual([]);
-    expect((await reserveTickets(deps, { ...pub, numbers: [9] })).ok).toBe(true);
+    expect((await reserveTickets(deps, { ...pub, clientId: "c1", numbers: [9] })).ok).toBe(true);
     const hist = await listHistory(deps, { orgId: org.id, raffleId: raffle.id, number: 9 });
     expect(hist.ok && hist.value.map((e) => e.action)).toEqual(["reserve", "expire", "reserve"]);
   });
@@ -122,7 +124,7 @@ describe("D1: expiración", () => {
   it("el cron persiste la caducidad una sola vez", async () => {
     const { deps, clock } = makeDeps();
     const { raffle, org } = await seedRaffle(deps);
-    await reserveTickets(deps, { ...pub, numbers: [1, 2] });
+    await reserveTickets(deps, { ...pub, clientId: "c1", numbers: [1, 2] });
     await markSold(deps, {
       orgId: org.id,
       raffleId: raffle.id,
@@ -143,7 +145,7 @@ describe("D1: administración", () => {
     const { deps } = makeDeps();
     const { raffle, org } = await seedRaffle(deps);
     const ids = { orgId: org.id, raffleId: raffle.id };
-    const r = await reserveTickets(deps, { ...pub, numbers: [42] });
+    const r = await reserveTickets(deps, { ...pub, clientId: "c1", numbers: [42] });
     if (!r.ok) throw new Error("reserva");
 
     await markSold(deps, {
@@ -171,7 +173,7 @@ describe("D1: administración", () => {
       paymentStatus: "debe",
       reservedUntil: null,
     });
-    expect((await reserveTickets(deps, { ...pub, numbers: [42] })).ok).toBe(false);
+    expect((await reserveTickets(deps, { ...pub, clientId: "c1", numbers: [42] })).ok).toBe(false);
 
     expect(
       (await updatePayment(deps, { ...ids, number: 42, payment: { status: "pagado" } })).ok,
@@ -181,7 +183,7 @@ describe("D1: administración", () => {
 
     expect((await releaseTicket(deps, { ...ids, number: 42 })).ok).toBe(true);
     expect((await releaseTicket(deps, { ...ids, number: 42 })).ok).toBe(false);
-    expect((await reserveTickets(deps, { ...pub, numbers: [42] })).ok).toBe(true);
+    expect((await reserveTickets(deps, { ...pub, clientId: "c1", numbers: [42] })).ok).toBe(true);
 
     const hist = await listHistory(deps, { ...ids, number: 42 });
     expect(hist.ok && hist.value.map((e) => `${e.action}:${e.fromStatus}>${e.toStatus}`)).toEqual([
@@ -196,7 +198,7 @@ describe("D1: administración", () => {
   it("paginación del historial por beforeId", async () => {
     const { deps } = makeDeps();
     const { raffle, org } = await seedRaffle(deps);
-    await reserveTickets(deps, { ...pub, numbers: [1, 2, 3, 4, 5] });
+    await reserveTickets(deps, { ...pub, clientId: "c1", numbers: [1, 2, 3, 4, 5] });
     const ids = { orgId: org.id, raffleId: raffle.id };
     const p1 = await listHistory(deps, { ...ids, limit: 2 });
     if (!p1.ok) throw new Error("p1");
@@ -282,8 +284,10 @@ describe("D1: rifas de 10 000 números", () => {
   it("aparta extremos 0000 y 9999", async () => {
     const { deps } = makeDeps();
     await seedRaffle(deps, { total: 10_000 });
-    const r = await reserveTickets(deps, { ...pub, numbers: [0, 9999] });
+    const r = await reserveTickets(deps, { ...pub, clientId: "c1", numbers: [0, 9999] });
     expect(r.ok && r.value.numbers).toEqual([0, 9999]);
-    expect((await reserveTickets(deps, { ...pub, numbers: [10_000] })).ok).toBe(false);
+    expect((await reserveTickets(deps, { ...pub, clientId: "c1", numbers: [10_000] })).ok).toBe(
+      false,
+    );
   });
 });

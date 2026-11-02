@@ -1,4 +1,10 @@
 # Copiar a apps/api/.dev.vars (ignorado por git) para desarrollo local.
+# En local no hay Turnstile: sin esto, apartar responde 503 (en producción falla cerrado a propósito).
+REQUIRE_TURNSTILE=false
+
+# Para probar Turnstile en local (claves de prueba de Cloudflare, siempre aprueban):
+# REQUIRE_TURNSTILE=true
+# TURNSTILE_SITE_KEY=1x00000000000000000000AA
+# TURNSTILE_SECRET=1x0000000000000000000000000000000AA
+
 # Secretos de producción: `wrangler secret put <NOMBRE>`.
-# TURNSTILE_SECRET=
-# SESSION_SECRET=

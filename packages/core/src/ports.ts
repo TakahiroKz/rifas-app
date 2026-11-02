@@ -86,7 +86,16 @@ export interface ReserveInput {
   now: string;
   /** ISO UTC */
   until: string;
+  /** Huella (hash) del cliente que aparta. */
+  clientKey: string;
+  /** Tope de apartados vigentes de ese cliente en la rifa, contando estos. */
+  maxActivePerClient: number;
 }
+
+export type ReserveOutcome =
+  | { ok: true }
+  | { ok: false; reason: "unavailable"; unavailable: number[] }
+  | { ok: false; reason: "limit" };
 
 export interface MarkSoldInput {
   orgId: string;
@@ -99,7 +108,7 @@ export interface MarkSoldInput {
 
 export interface TicketRepository {
   /** Todo o nada: reserva todos los números o ninguno. */
-  reserve(input: ReserveInput): Promise<{ ok: true } | { ok: false; unavailable: number[] }>;
+  reserve(input: ReserveInput): Promise<ReserveOutcome>;
   markSold(input: MarkSoldInput): Promise<void>;
   /** false si el número no está vendido. */
   updatePayment(input: {
