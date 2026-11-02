@@ -13,6 +13,7 @@ App web low cost (microSaaS a futuro, multi-tenant) para gestionar números de r
 - Los datos personales del comprador se piden por WhatsApp, no en la web pública.
 - Scraping: un adaptador aislado por fuente, con entrada manual de respaldo y trazabilidad de la fuente.
 - No realizamos sorteos ni captamos dinero: solo gestionamos números y anunciamos ganadores con resultados de terceros (Gane).
-- Números desde 00, con ceros a la izquierda (ancho = cifras de total-1). Premios con regla `first`/`last` + 1–4 cifras.
+- Números desde 0 con ceros a la izquierda (ancho = cifras de total-1), de 10 a 10 000 números (máx. 4 cifras, 0000–9999). Premios con regla `first`/`last` + 1–4 cifras.
+- Un premio = un número ganador; si coinciden varios, son varios premios. Sin ganador: se reevalúa con el próximo sorteo (fecha del admin), con historial de intentos.
 - WhatsApp: `https://wa.me/<tel sin +>?text=<mensaje url-encoded>`; el único parámetro es `text`.
 - Dominio: turifa.capitalfinaura.com (Cloudflare).

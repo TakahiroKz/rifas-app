@@ -89,8 +89,10 @@ Una rifa puede tener **N premios** (lugares). Cada premio define su propia regla
 | `digits` | 1, 2, 3 o 4 |
 
 Ejemplo: 1.º lugar = **últimas 2 cifras** del resultado; 2.º lugar = **primeras 2 cifras** del resultado.
-Los números de la rifa **empiezan en 00** y se muestran con ceros a la izquierda (ancho = cifras de `total_numbers - 1`; 100 números → `00–99`).
+Los números de la rifa **empiezan en 00** y se muestran con ceros a la izquierda (ancho = cifras de `total_numbers - 1`; 100 números → `00–99`; 10 000 números → `0000–9999`). **Máximo 4 cifras** por número..
 Al publicarse el resultado, el sistema calcula los números ganadores por premio, y el admin los **confirma y anuncia**.
+
+**Sin ganador** (el número no existe, está `activo` o no coincide): el premio pasa a `reprogramado` y se **vuelve a evaluar con el próximo sorteo** de la lotería, en la fecha que ingrese el admin. Cada intento queda en el historial.
 
 ### Riesgos
 - Términos de uso de cada fuente (ver Fuentes).
@@ -105,8 +107,9 @@ Al publicarse el resultado, el sistema calcula los números ganadores por premio
 - **users**: id, email, password_hash, name, created_at
 - **organizations**: id, name, slug, whatsapp_phone (en config, formato `57XXXXXXXXXX`), created_at
 - **memberships**: user_id, org_id, role (`owner`/`admin`)
-- **raffles**: id, org_id, slug, title, description, total_numbers (10–100000), number_start (siempre 0), number_width, ticket_price, status (`borrador`/`activa`/`cerrada`), draw_date, created_at
-- **raffle_prizes**: id, raffle_id, place, description, lottery_id, match_type (`last`/`first`), digits (1–4)
+- **raffles**: id, org_id, slug, title, description, total_numbers (10–10000), number_start (siempre 0), number_width, ticket_price, status (`borrador`/`activa`/`cerrada`), draw_date, created_at
+- **raffle_prizes**: id, raffle_id, place, description, lottery_id, match_type (`last`/`first`), digits (1–4), draw_date (la fija el admin y puede reprogramarla), status (`pendiente`/`anunciado`/`reprogramado`)
+- **prize_draw_attempts**: id, raffle_prize_id, draw_date, draw_result_id, outcome (`ganador`/`sin_ganador`), created_at — historial de intentos
 - **raffle_winners**: raffle_prize_id, number, draw_result_id, confirmed_at
 - **tickets**: raffle_id, number, status (`activo`/`apartado`/`vendido`), payment_status (`pagado`/`debe`/null), due_date, buyer_name, buyer_phone, note, reserved_at, reserved_until, sold_at, updated_at — PK (raffle_id, number)
 - **ticket_events**: id, raffle_id, number, from_status, to_status, actor (`public`/`admin`/`system`), at, meta — historial
@@ -114,9 +117,9 @@ Al publicarse el resultado, el sistema calcula los números ganadores por premio
 - **draw_results**: id, lottery_id, draw_date, winning_number, series, source_url, raw, fetched_at, is_manual
 - Toda consulta se filtra por `org_id` (aislamiento entre organizadores).
 
-### Tamaño: rifas de hasta 100 000 números
-- No materializar filas para números `activo`: solo guardar filas de `apartado`/`vendido`; el resto se infiere por rango. Evita insertar 100 000 filas por rifa en D1.
-- La cuadrícula pública debe virtualizarse o paginarse; la API entrega solo los números **no libres** y el cliente deduce los libres.
+### Tamaño: rifas de 10 a 10 000 números (máx. 4 cifras)
+- Se puede guardar solo `apartado`/`vendido` e inferir los libres por rango, o materializar las filas (máx. 10 000 por rifa, asumible en D1). Decidir en la Fase 1.
+- La cuadrícula pública debe ser ligera en móvil (virtualizada o paginada en rifas grandes); la API puede entregar solo los números **no libres**.
 - Reserva atómica con transacción/`batch` de D1 y verificación de filas afectadas.
 
 ## 8. Stack (low cost, ~$0/mes al inicio)
@@ -167,7 +170,9 @@ rifas/
 | Apartado | Caduca solo a las 24 h; queda en historial |
 | Deuda | `vendido` con `debe` + fecha de pago; basta con un **listado** (sin recordatorios) |
 | Rifas | Una activa hoy; arquitectura multi-tenant |
-| Números | 10 a 100 000, **empiezan en 00** (con ceros a la izquierda) |
+| Números | 10 a 10 000 (máx. **4 cifras**, `0000–9999`), **empiezan en 0** con ceros a la izquierda |
+| Ganador por premio | Un solo número por premio; si coinciden varios, se entregan varios premios (cada uno es un premio) |
+| Sorteo sin ganador | Se vuelve a ejecutar con el **próximo sorteo**, con la fecha que ingrese el admin; cada intento queda en historial |
 | Sorteos | No los hacemos ni captamos dinero; anunciamos ganadores con resultados de terceros |
 | Ganadores | N premios; regla por premio: primeras/últimas 1–4 cifras de una lotería |
 | Fuente de resultados | Gane (API/sitio), con respaldo manual |
@@ -178,10 +183,15 @@ rifas/
 | Infra | Cloudflare |
 
 ## 13. Preguntas abiertas
-1. **Cifras vs. ancho del número**: con regla de 1–4 cifras, ¿qué pasa si hay menos cifras que el ancho (p. ej. 1 cifra en una rifa 00–99 coincidirían ~10 números)? ¿Se permite varios ganadores por premio o la regla debe igualar el ancho?
-2. **Rifas de 100 000 números** (ancho 5): ¿se permiten reglas de 5 cifras o el máximo sigue en 4?
-3. **Resultado fuera de rango** (p. ej. rifa 00–49 y resultado termina en 73): ¿el premio queda desierto, se espera al siguiente sorteo o se usa otro resultado?
+1. **Lógica de premios** (pendiente de elegir, ver opciones abajo).
+2. **Número ganador sin vender**: si el número ganador está `activo` (nadie lo compró), ¿el premio se reprograma igual que si no existiera, o queda desierto?
+3. Detalle de la **reprogramación** (la respuesta quedó cortada): ¿la fecha del próximo sorteo la ingresa el admin de la rifa en cada intento? ¿Hay un máximo de reintentos?
 4. ¿El admin va en `turifa.capitalfinaura.com/admin` o en un subdominio aparte?
-5. **Gane**: ¿qué API/endpoints concretos usaremos y tienes autorización por escrito para su uso en este proyecto?
-6. ¿Un premio puede usar una lotería distinta a la de otro premio de la misma rifa? (el modelo lo permite)
-7. ¿Ya cuentas con el permiso/autorización para tus rifas? (aunque no hagamos el sorteo, quien organiza la rifa sí lo necesita)
+5. **Gane**: ¿qué API/endpoints concretos usaremos y tienes autorización por escrito?
+6. ¿Ya cuentas con el permiso/autorización para tus rifas? (quien organiza la rifa sí lo necesita)
+
+### Opciones para la lógica de premios
+- **A. Cifras = ancho del número** (1 ganador exacto por premio). Más simple: en una rifa 0000–9999 se compara el número completo; el premio solo elige `first`/`last` si el resultado tiene más cifras.
+- **B. Terminaciones de 1–4 cifras** (como las loterías colombianas): un premio por terminación y pueden coincidir varios números; cada coincidencia entrega un premio (lo que describiste).
+- **C. Aproximaciones**: premio al número anterior/siguiente del ganador, además del exacto.
+*Recomendación*: empezar con **B** (cubre A y tu regla de varios ganadores) y dejar C para después.
