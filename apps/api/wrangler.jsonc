@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "rifas-app",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Frontend estático (build de apps/web) servido por el mismo Worker.
+  "assets": {
+    "directory": "../web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+
+  // Tareas programadas (se implementan en fases posteriores).
+  "triggers": { "crons": ["*/10 * * * *"] },
+
+  "observability": { "enabled": true }
+
+  // Pendiente (Fase 1): enlazar la base de datos D1 tras crearla con
+  //   wrangler d1 create rifas-db
+  // "d1_databases": [
+  //   { "binding": "DB", "database_name": "rifas-db", "database_id": "<ID>", "migrations_dir": "../../migrations" }
+  // ],
+  // Pendiente (Fase 2+): dominio personalizado
+  // "routes": [{ "pattern": "turifa.capitalfinaura.com", "custom_domain": true }]
+}

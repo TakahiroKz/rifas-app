@@ -1,0 +1,8 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# Scripts de instalación permitidos (binarios nativos necesarios).
+onlyBuiltDependencies:
+  - esbuild
+  - workerd

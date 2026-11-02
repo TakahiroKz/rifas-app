@@ -60,7 +60,7 @@ rifas-app/
 ├─ docs/
 └─ .github/workflows/
 ```
-**Regla de dependencias** (se verifica en CI con lint de imports):
+**Regla de dependencias** (se garantiza declarando solo las dependencias permitidas en cada `package.json`; pnpm es estricto y un import no declarado falla):
 `web → contracts` · `api → core, lottery-sources, contracts` · `lottery-sources → core` · `core → (nada)`.
 
 ### Capas dentro de `core`
@@ -82,7 +82,7 @@ La infraestructura (`apps/api/src/infra`) implementa los puertos con D1.
 | Estado/routing web | `wouter` + `@preact/signals` | Mínimo necesario |
 | Despliegue | `wrangler` desde GitHub Actions (rama `main`) | Reproducible y gratis |
 | Lint/format | Biome | Una sola herramienta rápida |
-| Pruebas | Vitest (unitarias), `@cloudflare/vitest-pool-workers` (API + D1 local), Playwright (e2e) | Pirámide completa sin costo |
+| Pruebas | Vitest (unitarias), `@cloudflare/vitest-pool-workers` (API + D1 local, se incorpora en la Fase 1 junto con D1), Playwright (e2e, Fase 3) | Pirámide completa sin costo |
 | Observabilidad | Workers Logs con logs JSON estructurados + alerta de errores | Diagnóstico sin servicios de pago |
 
 ## 5. Decisiones clave de diseño

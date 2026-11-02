@@ -1,0 +1,24 @@
+{
+  "name": "rifas-app",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @rifas/api --filter @rifas/web dev",
+    "build": "pnpm --filter @rifas/web build && pnpm --filter @rifas/api build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "check": "pnpm lint && pnpm typecheck && pnpm test"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.4",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  },
+  "packageManager": "pnpm@10.28.0"
+}

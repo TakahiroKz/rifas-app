@@ -1,0 +1,19 @@
+{
+  "name": "@rifas/lottery-sources",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@rifas/core": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "^5.0.5"
+  }
+}
