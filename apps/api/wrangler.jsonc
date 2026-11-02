@@ -18,13 +18,14 @@
 
   "observability": { "enabled": true },
 
-  // Base de datos. Antes de desplegar: `wrangler d1 create rifas-db` y reemplazar database_id.
-  // En local (dev y pruebas) se usa una base SQLite simulada; el id no importa.
+  // Base de datos de producción (ya creada, con las migraciones 0001 y 0002 aplicadas).
+  // En local (dev y pruebas) se usa una base SQLite simulada; el id no se usa.
+  // Migraciones futuras: `pnpm exec wrangler d1 migrations apply rifas-db --remote` (desde apps/api).
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "rifas-db",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "9d191629-ea37-405d-9a42-4dad1056a4c5",
       "migrations_dir": "../../migrations"
     }
   ]

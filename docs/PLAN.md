@@ -144,7 +144,7 @@ Sí se pueden usar **varios dominios**: Cloudflare Pages permite agregar varios 
 - Copias de seguridad de D1 (export programado).
 
 ## 10. Fases
-1. **Fase 0 – Repo y tooling** ✅ (pendiente de tu lado: crear D1 y desplegar, ver README): monorepo pnpm, TypeScript, Biome, Vitest, CI, `.env.example`, proyecto Cloudflare (Worker + D1) y dominio.
+1. **Fase 0 – Repo y tooling** ✅ (base D1 de producción creada y con migraciones; falta el despliegue): monorepo pnpm, TypeScript, Biome, Vitest, CI, `.env.example`, proyecto Cloudflare (Worker + D1) y dominio.
 2. **Fase 1 – Núcleo** ✅: esquema D1 multi-tenant, dominio y casos de uso, reserva atómica, expiración a 24 h, historial y API pública, con 51 pruebas (incluye concurrencia y aislamiento entre organizaciones).
 3. **Fase 2 – Admin** ✅: login con sesiones seguras, CRUD de rifas, tablero de números, vender como pagado o debe con fecha, venta por código de apartado, listado de deudas, historial y ajustes. 88 pruebas automáticas más verificación de punta a punta en un navegador real.
 4. **Fase 3 – Público**: cuadrícula, selección, apartado + WhatsApp, política de privacidad enlazada.
