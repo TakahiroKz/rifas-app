@@ -102,10 +102,13 @@ export interface RaffleStats {
   sold: number;
   paid: number;
   owed: number;
+  /** Deudas cuya fecha de pago ya pasó (hora de Colombia). */
+  overdue: number;
   /** Pesos: vendidos × precio (null si la rifa no tiene precio). */
   soldAmount: number | null;
   paidAmount: number | null;
   owedAmount: number | null;
+  overdueAmount: number | null;
 }
 
 export type RaffleWithStats = Raffle & { stats: RaffleStats };

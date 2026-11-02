@@ -17,6 +17,7 @@ import type {
   TicketRepository,
   UserWithHash,
 } from "./ports";
+import { bogotaDate } from "./time";
 import type {
   DrawResult,
   Organization,
@@ -296,19 +297,38 @@ class Tickets implements TicketRepository {
     );
   }
 
-  async countByRaffle(orgId: string, now: string) {
-    const map = new Map<string, { reserved: number; sold: number; paid: number; owed: number }>();
+  async countByRaffle(orgId: string, now: string, today: string) {
+    const map = new Map<
+      string,
+      { reserved: number; sold: number; paid: number; owed: number; overdue: number }
+    >();
     for (const r of this.rows.filter((x) => x.orgId === orgId)) {
-      const c = map.get(r.raffleId) ?? { reserved: 0, sold: 0, paid: 0, owed: 0 };
+      const c = map.get(r.raffleId) ?? { reserved: 0, sold: 0, paid: 0, owed: 0, overdue: 0 };
       if (r.status === "apartado" && (r.reservedUntil ?? "") > now) c.reserved++;
       if (r.status === "vendido") {
         c.sold++;
         if (r.paymentStatus === "pagado") c.paid++;
-        if (r.paymentStatus === "debe") c.owed++;
+        if (r.paymentStatus === "debe") {
+          c.owed++;
+          if (r.dueDate !== null && r.dueDate < today) c.overdue++;
+        }
       }
       map.set(r.raffleId, c);
     }
     return map;
+  }
+
+  async activityByDay(orgId: string, raffleId: string, sinceDay: string) {
+    const days = new Map<string, { day: string; reserved: number; sold: number }>();
+    for (const e of this.events.filter((x) => x.orgId === orgId && x.raffleId === raffleId)) {
+      const day = bogotaDate(new Date(e.at));
+      if (day < sinceDay || (e.action !== "reserve" && e.action !== "sell")) continue;
+      const d = days.get(day) ?? { day, reserved: 0, sold: 0 };
+      if (e.action === "reserve") d.reserved++;
+      else d.sold++;
+      days.set(day, d);
+    }
+    return [...days.values()].sort((a, b) => a.day.localeCompare(b.day));
   }
 
   async listEvents(

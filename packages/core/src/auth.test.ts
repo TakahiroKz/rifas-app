@@ -146,9 +146,11 @@ describe("administración de rifas", () => {
       sold: 3,
       paid: 1,
       owed: 2,
+      overdue: 0,
       soldAmount: 30000,
       paidAmount: 10000,
       owedAmount: 20000,
+      overdueAmount: 0,
     });
     const list = await listRafflesWithStats(deps, { orgId: org.id });
     expect(list).toHaveLength(1);

@@ -17,7 +17,8 @@ import { Button, ErrorBox, inputClass, useAsync } from "../ui";
 import { buildWhatsAppMessage, buildWhatsAppUrl } from "../whatsapp";
 
 const PAGE_SIZE = 200;
-const REFRESH_MS = 30_000;
+// El refresco solo corre con la pestaña visible: una pestaña olvidada no debe gastar la cuota diaria de peticiones.
+const REFRESH_MS = 45_000;
 
 export function PublicRaffle({ org, raffle: slug }: { org: string; raffle: string }) {
   const info = useAsync(() => publicApi.getRaffle(org, slug), [org, slug]);
@@ -85,12 +86,19 @@ function RaffleView({
 
   useEffect(() => {
     void refresh();
-    const timer = setInterval(refresh, REFRESH_MS);
-    const onFocus = () => void refresh();
-    window.addEventListener("focus", onFocus);
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") void refresh();
+    }, REFRESH_MS);
+    // Al volver a la pestaña se actualiza de inmediato.
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
     return () => {
       clearInterval(timer);
-      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
     };
   }, [org, slug]);
 

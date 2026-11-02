@@ -10,6 +10,7 @@ export * from "./ports";
 export * from "./prize-rules";
 export * from "./prizes";
 export * from "./raffles";
+export * from "./report";
 export * from "./reservation-code";
 export * from "./result";
 export * from "./session-token";

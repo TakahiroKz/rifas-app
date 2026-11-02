@@ -9,12 +9,16 @@ import {
   updateRaffleRequestSchema,
 } from "@rifas/contracts";
 import {
+  bogotaDate,
   createRaffle,
   findReservation,
+  formatBogota,
+  getRaffleReport,
   getRaffleWithStats,
   listAdminTickets,
   listDebts,
   listHistory,
+  listPrizes,
   listRafflesWithStats,
   login,
   logout,
@@ -33,6 +37,7 @@ import type { z } from "zod";
 import { type AdminEnv, forbiddenOrigin, requireAuth, sameOrigin } from "./admin-auth";
 import { prizeRoutes } from "./admin-prizes";
 import { clearSessionCookie, readSessionCookie, writeSessionCookie } from "./cookies";
+import { toCsv } from "./csv";
 import { type HttpStatus, toHttpError } from "./errors";
 
 export const adminRoutes = new Hono<AdminEnv>();
@@ -315,4 +320,77 @@ adminRoutes.get("/raffles/:id/history", async (c) => {
   return result.ok
     ? c.json({ events: result.value.map(({ raffleId: _r, ...e }) => e) })
     : fail(c, result);
+});
+
+// ───────────── Reporte y exportación ─────────────
+
+adminRoutes.get("/raffles/:id/report", async (c) => {
+  const result = await getRaffleReport(c.get("deps"), {
+    orgId: c.get("auth").organization.id,
+    raffleId: c.req.param("id"),
+  });
+  if (!result.ok) return fail(c, result);
+  const { raffle, activity, debts, soldPercent } = result.value;
+  return c.json({ raffle: toRaffleDto(raffle), activity, debts, soldPercent });
+});
+
+/** CSV de los números apartados y vendidos (con comprador, pago y premios ganados). */
+adminRoutes.get("/raffles/:id/export.csv", async (c) => {
+  const deps = c.get("deps");
+  const orgId = c.get("auth").organization.id;
+  const raffleId = c.req.param("id");
+  const raffle = await getRaffleWithStats(deps, { orgId, raffleId });
+  if (!raffle.ok) return fail(c, raffle);
+  const tickets = await listAdminTickets(deps, { orgId, raffleId });
+  if (!tickets.ok) return fail(c, tickets);
+  const prizes = await listPrizes(deps, { orgId, raffleId });
+
+  const won = new Map<number, string[]>();
+  if (prizes.ok) {
+    for (const { prize, winners } of prizes.value) {
+      for (const w of winners)
+        won.set(w.number, [...(won.get(w.number) ?? []), `Premio ${prize.place}`]);
+    }
+  }
+  const now = deps.clock.now();
+  const width = raffle.value.numberWidth;
+  const rows = tickets.value
+    // Un apartado vencido ya es un número libre.
+    .filter((t) => !(t.status === "apartado" && (t.reservedUntil ?? "") <= now.toISOString()))
+    .map((t) => [
+      String(t.number).padStart(width, "0"),
+      t.status,
+      t.paymentStatus ?? "",
+      t.dueDate ?? "",
+      t.buyerName,
+      t.buyerPhone,
+      t.note,
+      t.reservationCode,
+      t.reservedUntil && t.status === "apartado" ? formatBogota(t.reservedUntil) : "",
+      t.soldAt ? formatBogota(t.soldAt) : "",
+      (won.get(t.number) ?? []).join("; "),
+    ]);
+  const csv = toCsv(
+    [
+      "Número",
+      "Estado",
+      "Pago",
+      "Fecha de pago",
+      "Comprador",
+      "Teléfono",
+      "Nota",
+      "Código de apartado",
+      "Apartado hasta",
+      "Vendido el",
+      "Premios ganados",
+    ],
+    rows,
+  );
+  return new Response(csv, {
+    headers: {
+      "content-type": "text/csv; charset=utf-8",
+      "content-disposition": `attachment; filename="rifa-${raffle.value.slug}-${bogotaDate(now)}.csv"`,
+      "cache-control": "no-store",
+    },
+  });
 });

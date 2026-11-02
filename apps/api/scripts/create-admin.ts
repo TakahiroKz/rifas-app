@@ -7,48 +7,16 @@
  * La contraseña se pide por consola (oculta) o se toma de ADMIN_PASSWORD. Por defecto
  * actúa sobre la base LOCAL; con --remote, sobre la de producción.
  */
-import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { createInterface } from "node:readline";
-import { Writable } from "node:stream";
 import { hashPassword, isValidPhone, isValidSlug, MIN_PASSWORD_LENGTH } from "@rifas/core";
-
-function arg(name: string): string | undefined {
-  const i = process.argv.indexOf(`--${name}`);
-  return i >= 0 ? process.argv[i + 1] : undefined;
-}
-
-function fail(message: string): never {
-  console.error(`Error: ${message}`);
-  process.exit(1);
-}
-
-const q = (value: string) => `'${value.replaceAll("'", "''")}'`;
-
-async function askPassword(): Promise<string> {
-  const fromEnv = process.env.ADMIN_PASSWORD;
-  if (fromEnv) return fromEnv;
-  process.stdout.write("Contraseña (oculta): ");
-  const muted = new Writable({ write: (_c, _e, cb) => cb() });
-  const rl = createInterface({ input: process.stdin, output: muted, terminal: true });
-  return new Promise((resolve) =>
-    rl.question("", (answer) => {
-      rl.close();
-      process.stdout.write("\n");
-      resolve(answer);
-    }),
-  );
-}
+import { arg, askPassword, fail, flag, q, runD1 } from "./lib";
 
 const email = arg("email")?.trim().toLowerCase();
 const name = arg("name")?.trim();
 const orgSlug = arg("org-slug");
 const orgName = arg("org-name")?.trim();
 const whatsapp = arg("whatsapp");
-const remote = process.argv.includes("--remote");
+const remote = flag("remote");
 
 if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) fail("--email no es válido");
 if (!name || name.length < 2) fail("--name es obligatorio");
@@ -68,28 +36,8 @@ const sql = [
   `INSERT INTO memberships (user_id, org_id, role) VALUES (${q(userId)}, (SELECT id FROM organizations WHERE slug = ${q(orgSlug)}), 'owner');`,
 ].join("\n");
 
-const dir = mkdtempSync(join(tmpdir(), "rifas-admin-"));
-const file = join(dir, "create-admin.sql");
-try {
-  writeFileSync(file, sql, { mode: 0o600 });
-  const result = spawnSync(
-    "pnpm",
-    [
-      "exec",
-      "wrangler",
-      "d1",
-      "execute",
-      "rifas-db",
-      remote ? "--remote" : "--local",
-      "--file",
-      file,
-    ],
-    { stdio: "inherit" },
-  );
-  if (result.status !== 0) fail("no se pudo escribir en la base de datos (¿el correo ya existe?)");
-  console.log(
-    `\nAdministrador creado: ${email} → organización "${orgSlug}" (${remote ? "producción" : "local"}).`,
-  );
-} finally {
-  rmSync(dir, { recursive: true, force: true });
-}
+const done = runD1(sql, remote);
+if (!done.ok) fail("no se pudo escribir en la base de datos (¿el correo ya existe?)");
+console.log(
+  `\nAdministrador creado: ${email} → organización "${orgSlug}" (${remote ? "producción" : "local"}).`,
+);

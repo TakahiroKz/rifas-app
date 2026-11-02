@@ -7,13 +7,15 @@ import { NumberBoard } from "../components/NumberBoard";
 import { PrizesTab } from "../components/PrizesTab";
 import { ReservationSearch } from "../components/ReservationSearch";
 import { SettingsTab } from "../components/SettingsTab";
+import { SummaryTab } from "../components/SummaryTab";
 import { TicketDialog } from "../components/TicketDialog";
 import { formatMoney, plural } from "../format";
 import { useSession } from "../session";
 import { Badge, Button, ErrorBox, useAsync, useToast } from "../ui";
 
-type Tab = "numeros" | "premios" | "deudas" | "historial" | "ajustes";
+type Tab = "resumen" | "numeros" | "premios" | "deudas" | "historial" | "ajustes";
 const TABS: [Tab, string][] = [
+  ["resumen", "Resumen"],
   ["numeros", "Números"],
   ["premios", "Premios"],
   ["deudas", "Deudas"],
@@ -25,7 +27,7 @@ const statusTone = { borrador: "slate", activa: "green", cerrada: "amber" } as c
 export function RaffleDetail({ id }: { id: string }) {
   const toast = useToast();
   const { session } = useSession();
-  const [tab, setTab] = useState<Tab>("numeros");
+  const [tab, setTab] = useState<Tab>("resumen");
   const [selected, setSelected] = useState<number | null>(null);
   const [version, setVersion] = useState(0);
 
@@ -94,14 +96,22 @@ export function RaffleDetail({ id }: { id: string }) {
           >
             {label}
             {key === "deudas" && r.stats.owed > 0 && (
-              <span class="ml-1.5 rounded-full bg-rose-100 px-1.5 text-xs text-rose-700">
-                {r.stats.owed}
+              <span
+                class={`ml-1.5 rounded-full px-1.5 text-xs ${r.stats.overdue > 0 ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-800"}`}
+                title={
+                  r.stats.overdue > 0 ? `${r.stats.overdue} vencidas` : `${r.stats.owed} por cobrar`
+                }
+              >
+                {r.stats.overdue > 0 ? r.stats.overdue : r.stats.owed}
               </span>
             )}
           </button>
         ))}
       </nav>
 
+      {tab === "resumen" && (
+        <SummaryTab raffle={r} version={version} onShowDebts={() => setTab("deudas")} />
+      )}
       {tab === "numeros" && (
         <div class="space-y-4">
           <ReservationSearch

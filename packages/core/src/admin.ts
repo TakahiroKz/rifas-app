@@ -1,22 +1,23 @@
 import type { Deps } from "./deps";
 import { fail, ok, type Result } from "./result";
 import { markSold } from "./tickets";
+import { bogotaDate } from "./time";
 import type { Buyer, Organization, RaffleStats, RaffleStatus, RaffleWithStats } from "./types";
 import { cleanText, isValidDate, isValidPhone } from "./validation";
 
 const RAFFLE_STATUSES: RaffleStatus[] = ["borrador", "activa", "cerrada"];
 
-function buildStats(
-  price: number | null,
-  c: { reserved: number; sold: number; paid: number; owed: number } | undefined,
-): RaffleStats {
-  const counts = c ?? { reserved: 0, sold: 0, paid: 0, owed: 0 };
+type Counts = { reserved: number; sold: number; paid: number; owed: number; overdue: number };
+
+function buildStats(price: number | null, c: Counts | undefined): RaffleStats {
+  const counts = c ?? { reserved: 0, sold: 0, paid: 0, owed: 0, overdue: 0 };
   const amount = (n: number) => (price === null ? null : n * price);
   return {
     ...counts,
     soldAmount: amount(counts.sold),
     paidAmount: amount(counts.paid),
     owedAmount: amount(counts.owed),
+    overdueAmount: amount(counts.overdue),
   };
 }
 
@@ -27,7 +28,7 @@ export async function listRafflesWithStats(
   const now = deps.clock.now().toISOString();
   const [raffles, counts] = await Promise.all([
     deps.raffles.listByOrg(input.orgId),
-    deps.tickets.countByRaffle(input.orgId, now),
+    deps.tickets.countByRaffle(input.orgId, now, bogotaDate(deps.clock.now())),
   ]);
   return raffles.map((r) => ({ ...r, stats: buildStats(r.ticketPrice, counts.get(r.id)) }));
 }
@@ -38,7 +39,11 @@ export async function getRaffleWithStats(
 ): Promise<Result<RaffleWithStats>> {
   const raffle = await deps.raffles.findById(input.orgId, input.raffleId);
   if (!raffle) return fail("not_found", "Rifa no encontrada");
-  const counts = await deps.tickets.countByRaffle(input.orgId, deps.clock.now().toISOString());
+  const counts = await deps.tickets.countByRaffle(
+    input.orgId,
+    deps.clock.now().toISOString(),
+    bogotaDate(deps.clock.now()),
+  );
   return ok({ ...raffle, stats: buildStats(raffle.ticketPrice, counts.get(raffle.id)) });
 }
 

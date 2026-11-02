@@ -1,6 +1,6 @@
 # Plan: Plataforma de rifas (microSaaS)
 
-> Estado: Fase 4 completada. Última actualización: 2026-11-02. Repo: `TakahiroKz/rifas-app`.
+> Estado: Fase 5 completada. Última actualización: 2026-11-02. Repo: `TakahiroKz/rifas-app`.
 
 ## 1. Visión
 Plataforma para gestionar **los números de una rifa** (sin pagos en línea) y, además, **consultar resultados de loterías y sorteos** (Colombia y otros países) para anunciar ganadores.
@@ -149,7 +149,7 @@ Sí se pueden usar **varios dominios**: Cloudflare Pages permite agregar varios 
 3. **Fase 2 – Admin** ✅: login con sesiones seguras, CRUD de rifas, tablero de números, vender como pagado o debe con fecha, venta por código de apartado, listado de deudas, historial y ajustes. 88 pruebas automáticas más verificación de punta a punta en un navegador real.
 4. **Fase 3 – Público** ✅: página pública, selección, apartado + WhatsApp con código, política de privacidad (preliminar), Turnstile, límite de tasa, tope por cliente y encabezados de seguridad. 114 pruebas automáticas + flujo completo verificado en navegador.
 5. **Fase 4 – Loterías** ✅: catálogo de juegos con calendario (Chontico Noche, Dorado Noche, Lotería del Valle), adaptador de Gane con muestras reales, resultados oficiales y manuales, premios por terminación (1 a ancho cifras, primeras/últimas), propuesta + confirmación atómica, reprogramación con historial, Cron de resultados y ganadores en la página pública. 168 pruebas automáticas + flujo completo verificado en navegador.
-6. **Fase 5 – Pulido**: estadísticas, CSV, alertas de deuda vencida, despliegue y dominio.
+6. **Fase 5 – Pulido** ✅: pestaña Resumen (avance, dinero, actividad de 30 días), alertas de deudas vencidas, exportación CSV segura, respaldo diario a R2 con restauración verificada, vista previa del enlace para WhatsApp, scripts de operación (restablecer contraseña) y flujo de despliegue con guías ([`DESPLIEGUE.md`](DESPLIEGUE.md), [`OPERACION.md`](OPERACION.md)). Falta ejecutar el despliegue (depende de ti).
 7. **Fase 6 – SaaS**: registro abierto, organizaciones, límites/planes, dominios por cliente, términos y condiciones.
 
 ## 11. Arquitectura
@@ -189,6 +189,7 @@ Pendiente de Leo / de revisión legal antes de abrir `turifa.capitalfinaura.com`
 - [ ] **Política de privacidad**: revisión de un abogado; luego poner `PRIVACY_POLICY_REVIEWED = true` (`apps/web/src/pages/Privacy.tsx`) para quitar el aviso de «versión preliminar».
 - [ ] **Permiso de las rifas** ante la autoridad competente (Ley 643 de 2001) — a cargo del organizador.
 - [ ] **Gane**: autorización por escrito. Mientras no la tengas, `LOTTERY_SYNC_ENABLED` queda en `"false"` y el resultado se ingresa a mano en el panel. Al tenerla: ponerla en `"true"` en `wrangler.jsonc`.
-- [ ] **Despliegue**: aplicar al remoto las migraciones nuevas (la 0004 ya está en la base de producción); agregar secretos `CLOUDFLARE_API_TOKEN` y `CLOUDFLARE_ACCOUNT_ID` en GitHub; activar la ruta `turifa.capitalfinaura.com` en `wrangler.jsonc`; aplicar migraciones al remoto; crear el administrador con `pnpm admin:create ... --remote`.
-- [ ] **R2** habilitado (respaldos, Fase 5).
+- [ ] **Despliegue** (guía paso a paso en [`DESPLIEGUE.md`](DESPLIEGUE.md)): token de API y secretos en GitHub (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`), ejecutar el flujo *Deploy* (la ruta del dominio ya está en `wrangler.jsonc`; las migraciones 0001–0004 ya están en la base de producción), y crear el administrador con `pnpm admin:create ... --remote`.
+- [ ] **Workers Paid (5 USD/mes)**: requisito; el plan gratis no soporta el inicio de sesión (ver `DESPLIEGUE.md`, paso 0).
+- [ ] **R2** habilitado, bucket `rifas-backups` creado y bloque `r2_buckets` descomentado (respaldos).
 - [ ] Regla de límite de tasa adicional en la zona (WAF) como segunda capa — opcional.

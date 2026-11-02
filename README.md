@@ -6,7 +6,7 @@ Plataforma web low cost para gestionar **los números de una rifa** (sin pagos e
 - **Panel admin**: el organizador crea rifas, marca números como *vendido* (*pagado* o *debe* con fecha) y consulta el historial.
 - **Loterías y premios**: cada premio usa las primeras o últimas cifras del resultado de una lotería (Chontico Noche, Dorado Noche, Lotería del Valle). Se confirma el ganador y se reprograma si no hay. La plataforma no hace sorteos ni capta dinero.
 
-> Estado: **Fase 4 completada** (loterías y premios). Falta pulir (Fase 5) y publicar: ver la lista previa en [`docs/PLAN.md`](docs/PLAN.md#14-lista-previa-a-publicar-lanzamiento). Ver [`docs/PLAN.md`](docs/PLAN.md).
+> Estado: **Fases 0–5 completadas**. Falta publicar (despliegue y trámites): ver [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md) y la [lista previa](docs/PLAN.md#14-lista-previa-a-publicar-lanzamiento). Plan completo en [`docs/PLAN.md`](docs/PLAN.md).
 
 ## Requisitos
 - Node.js 22 (`.nvmrc`) y [pnpm](https://pnpm.io) 10.
@@ -41,6 +41,7 @@ migrations/            SQL de D1
 ```
 
 ## Documentación
+- [Despliegue](docs/DESPLIEGUE.md) y [Operación](docs/OPERACION.md): publicar, respaldos, contraseñas y qué hacer si algo falla.
 - [Plan del proyecto](docs/PLAN.md): alcance, estados, stack, modelo de datos, fases.
 - [Política de privacidad (borrador)](docs/PRIVACIDAD.md)
 - [Arquitectura](docs/ARQUITECTURA.md)

@@ -17,9 +17,11 @@ import {
   type PaymentInput,
   type Proposal,
   proposalSchema,
+  type RaffleReport,
   type ReservationLookup,
   type ResolveResponse,
   type ResultLookup,
+  raffleReportSchema,
   reservationLookupSchema,
   resolveResponseSchema,
   resultLookupSchema,
@@ -157,6 +159,11 @@ export const api = {
     request("GET", `/raffles/${enc(id)}/reservations/${enc(code.trim())}`, {
       schema: reservationLookupSchema,
     }),
+  getReport: (id: string): Promise<RaffleReport> =>
+    request("GET", `/raffles/${enc(id)}/report`, { schema: raffleReportSchema }),
+  /** Enlace de descarga del CSV (la cookie de sesión viaja sola). */
+  exportCsvUrl: (id: string) => `/api/v1/admin/raffles/${enc(id)}/export.csv`,
+
   // ───────────── Loterías y premios ─────────────
   listLotteries: (): Promise<LotteriesResponse> =>
     request("GET", "/lotteries", { schema: lotteriesResponseSchema }),

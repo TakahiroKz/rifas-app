@@ -10,11 +10,18 @@
     "directory": "../web/dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*"]
+    // /r/* pasa por el Worker para añadir la vista previa del enlace (título y descripción de la rifa).
+    "run_worker_first": ["/api/*", "/r/*"]
   },
 
   // Tareas programadas (se implementan en fases posteriores).
-  "triggers": { "crons": ["*/10 * * * *"] },
+  // Dos tareas: cada 10 min (apartados vencidos, resultados, limpieza) y el respaldo diario a las 08:00 UTC
+  // (03:00 en Colombia). El segundo debe coincidir con BACKUP_CRON en src/jobs/backup.ts.
+  "triggers": { "crons": ["*/10 * * * *", "0 8 * * *"] },
+
+  // Solo se sirve por el dominio propio; sin URL *.workers.dev ni de vista previa.
+  "workers_dev": false,
+  "preview_urls": false,
 
   "observability": { "enabled": true },
 
@@ -46,13 +53,24 @@
     }
   ],
 
-  // Pendiente (al desplegar): dominio personalizado
-  // "routes": [{ "pattern": "turifa.capitalfinaura.com", "custom_domain": true }],
+  // Dominio: al desplegar, Cloudflare crea el registro DNS y el certificado de este subdominio
+  // (la zona capitalfinaura.com ya está en tu cuenta). app.capitalfinaura.com es de otro Worker.
+  "routes": [{ "pattern": "turifa.capitalfinaura.com", "custom_domain": true }],
+
+  // Respaldos diarios. R2 todavía no está habilitado en la cuenta: actívalo en el panel de Cloudflare,
+  // crea el bucket con `wrangler r2 bucket create rifas-backups` y descomenta este bloque.
+  // Mientras tanto el respaldo se omite sin error.
+  // "r2_buckets": [{ "binding": "BACKUPS", "bucket_name": "rifas-backups" }],
 
   // Entorno de pruebas automáticas (vitest): sin Turnstile ni límite de tasa para no interferir;
   // ambos se prueban aparte. Los enlaces (bindings) no se heredan, por eso se repite D1.
   "env": {
     "test": {
+      // Solo para pruebas: nunca debe tomar el dominio ni las tareas programadas del Worker real.
+      "routes": [],
+      "triggers": { "crons": [] },
+      // Bucket simulado: en pruebas no es de verdad.
+      "r2_buckets": [{ "binding": "BACKUPS", "bucket_name": "rifas-backups-test" }],
       "vars": {
         "REQUIRE_TURNSTILE": "false",
         "TURNSTILE_SITE_KEY": "",

@@ -559,24 +559,48 @@ export class D1TicketRepository implements TicketRepository {
     return results.map(toTicket);
   }
 
-  async countByRaffle(orgId: string, now: string) {
+  async countByRaffle(orgId: string, now: string, today: string) {
     const { results } = await this.db
       .prepare(
         `SELECT raffle_id,
                 SUM(CASE WHEN status = 'apartado' AND reserved_until > ? THEN 1 ELSE 0 END) AS reserved,
                 SUM(CASE WHEN status = 'vendido' THEN 1 ELSE 0 END) AS sold,
                 SUM(CASE WHEN payment_status = 'pagado' THEN 1 ELSE 0 END) AS paid,
-                SUM(CASE WHEN payment_status = 'debe' THEN 1 ELSE 0 END) AS owed
+                SUM(CASE WHEN payment_status = 'debe' THEN 1 ELSE 0 END) AS owed,
+                SUM(CASE WHEN payment_status = 'debe' AND due_date < ? THEN 1 ELSE 0 END) AS overdue
            FROM tickets WHERE org_id = ? GROUP BY raffle_id`,
       )
-      .bind(now, orgId)
-      .all<{ raffle_id: string; reserved: number; sold: number; paid: number; owed: number }>();
+      .bind(now, today, orgId)
+      .all<{
+        raffle_id: string;
+        reserved: number;
+        sold: number;
+        paid: number;
+        owed: number;
+        overdue: number;
+      }>();
     return new Map(
       results.map((r) => [
         r.raffle_id,
-        { reserved: r.reserved, sold: r.sold, paid: r.paid, owed: r.owed },
+        { reserved: r.reserved, sold: r.sold, paid: r.paid, owed: r.owed, overdue: r.overdue },
       ]),
     );
+  }
+
+  async activityByDay(orgId: string, raffleId: string, sinceDay: string) {
+    // Colombia es UTC-5 todo el año: el día local empieza a las 05:00 UTC.
+    const { results } = await this.db
+      .prepare(
+        `SELECT date(at, '-5 hours') AS day,
+                SUM(CASE WHEN action = 'reserve' THEN 1 ELSE 0 END) AS reserved,
+                SUM(CASE WHEN action = 'sell' THEN 1 ELSE 0 END) AS sold
+           FROM ticket_events
+          WHERE org_id = ? AND raffle_id = ? AND action IN ('reserve', 'sell') AND at >= ?
+          GROUP BY day ORDER BY day`,
+      )
+      .bind(orgId, raffleId, `${sinceDay}T05:00:00.000Z`)
+      .all<{ day: string; reserved: number; sold: number }>();
+    return results;
   }
 
   async listEvents(

@@ -147,11 +147,20 @@ export interface TicketRepository {
     code: string,
     now: string,
   ): Promise<TicketRecord[]>;
-  /** Conteos por rifa de la organización, para el tablero. */
+  /** Conteos por rifa de la organización, para el tablero. `today` = AAAA-MM-DD en Colombia. */
   countByRaffle(
     orgId: string,
     now: string,
-  ): Promise<Map<string, { reserved: number; sold: number; paid: number; owed: number }>>;
+    today: string,
+  ): Promise<
+    Map<string, { reserved: number; sold: number; paid: number; owed: number; overdue: number }>
+  >;
+  /** Movimientos por día (hora de Colombia) desde `sinceDay`: apartados y ventas registrados. */
+  activityByDay(
+    orgId: string,
+    raffleId: string,
+    sinceDay: string,
+  ): Promise<{ day: string; reserved: number; sold: number }[]>;
   listEvents(
     orgId: string,
     raffleId: string,

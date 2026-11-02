@@ -1,24 +1,63 @@
 name: Deploy
 
-# Manual hasta que existan los secretos CLOUDFLARE_API_TOKEN y CLOUDFLARE_ACCOUNT_ID
-# y la base de datos D1 (Fase 1).
+# Manual y con confirmación. Requiere el entorno "production" y sus secretos (ver docs/DESPLIEGUE.md).
 on:
   workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Escribe DESPLEGAR para confirmar"
+        required: true
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
 
 jobs:
   deploy:
+    if: ${{ inputs.confirm == 'DESPLEGAR' }}
     runs-on: ubuntu-latest
     environment: production
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Verificar secretos
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "::error::Falta el secreto CLOUDFLARE_API_TOKEN"; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "::error::Falta el secreto CLOUDFLARE_ACCOUNT_ID"; exit 1; }
+
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @rifas/web build
-      - run: pnpm --filter @rifas/api deploy
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      # No se despliega nada que no pase lint, tipos y pruebas.
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+
+      - name: Compilar la web
+        run: pnpm --filter @rifas/web build
+
+      # Primero la base: las migraciones son solo hacia adelante y el código nuevo las espera.
+      - name: Aplicar migraciones pendientes (D1 remoto)
+        working-directory: apps/api
+        run: pnpm exec wrangler d1 migrations apply rifas-db --remote
+
+      - name: Desplegar el Worker
+        run: pnpm --filter @rifas/api deploy
+
+      # La primera vez, el dominio y su certificado pueden tardar unos minutos.
+      - name: Verificar que responde
+        run: |
+          for i in $(seq 1 20); do
+            if curl -fsS --max-time 10 https://turifa.capitalfinaura.com/api/v1/health | grep -q '"status":"ok"'; then
+              echo "OK: el servicio responde"; exit 0
+            fi
+            echo "Intento $i: aún no responde, esperando…"; sleep 30
+          done
+          echo "::error::El servicio no respondió en 10 minutos"; exit 1

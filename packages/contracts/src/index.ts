@@ -109,9 +109,11 @@ export const raffleStatsSchema = z.object({
   sold: z.number().int(),
   paid: z.number().int(),
   owed: z.number().int(),
+  overdue: z.number().int(),
   soldAmount: z.number().int().nullable(),
   paidAmount: z.number().int().nullable(),
   owedAmount: z.number().int().nullable(),
+  overdueAmount: z.number().int().nullable(),
 });
 
 export const adminRaffleSchema = z.object({
@@ -341,3 +343,21 @@ export const resolveResponseSchema = z.object({
   nextDrawDate: z.string().nullable(),
 });
 export type ResolveResponse = z.infer<typeof resolveResponseSchema>;
+
+// ───────────── Reporte de la rifa ─────────────
+
+export const raffleReportSchema = z.object({
+  raffle: adminRaffleSchema,
+  /** Últimos 30 días (hora de Colombia), con ceros donde no hubo movimiento. */
+  activity: z.array(
+    z.object({ day: z.string(), reserved: z.number().int(), sold: z.number().int() }),
+  ),
+  debts: z.object({
+    overdueCount: z.number().int(),
+    overdueAmount: z.number().int().nullable(),
+    oldestOverdueDate: z.string().nullable(),
+    nextDueDate: z.string().nullable(),
+  }),
+  soldPercent: z.number(),
+});
+export type RaffleReport = z.infer<typeof raffleReportSchema>;

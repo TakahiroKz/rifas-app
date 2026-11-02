@@ -14,7 +14,8 @@
     "lint": "biome check .",
     "format": "biome format --write .",
     "check": "pnpm lint && pnpm typecheck && pnpm test",
-    "admin:create": "pnpm --filter @rifas/api admin:create --"
+    "admin:create": "pnpm --filter @rifas/api admin:create --",
+    "admin:reset-password": "pnpm --filter @rifas/api admin:reset-password --"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.4",

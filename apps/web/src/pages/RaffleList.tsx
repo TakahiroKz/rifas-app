@@ -1,7 +1,7 @@
 import type { AdminRaffle } from "@rifas/contracts";
 import { Link } from "wouter-preact";
 import { api } from "../api";
-import { formatDay, formatMoney } from "../format";
+import { formatDay, formatMoney, plural } from "../format";
 import { Badge, ErrorBox, useAsync } from "../ui";
 
 const statusTone = { borrador: "slate", activa: "green", cerrada: "amber" } as const;
@@ -58,6 +58,12 @@ function RaffleCard({ raffle: r }: { raffle: AdminRaffle }) {
       <div class="h-2 overflow-hidden rounded-full bg-slate-100" aria-hidden="true">
         <div class="h-full bg-indigo-500" style={{ width: `${pct}%` }} />
       </div>
+      {r.stats.overdue > 0 && (
+        <p class="rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-800">
+          {r.stats.overdue} {plural(r.stats.overdue, "deuda vencida", "deudas vencidas")}
+          {r.stats.overdueAmount !== null ? ` · ${formatMoney(r.stats.overdueAmount)}` : ""}
+        </p>
+      )}
       <dl class="grid grid-cols-4 gap-2 text-center text-xs">
         <Stat label="Apartados" value={r.stats.reserved} />
         <Stat label="Vendidos" value={r.stats.sold} />

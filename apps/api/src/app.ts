@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import { adminRoutes } from "./http/admin";
 import { publicRoutes } from "./http/public";
 import { securityHeaders } from "./http/security";
+import { serveRafflePage } from "./http/share";
 import { createDeps } from "./infra/deps";
 
 export type Env = {
@@ -18,6 +19,8 @@ export type Env = {
   RESERVE_LIMITER?: RateLimit;
   /** "true" activa la consulta automática de resultados a Gane. Requiere su autorización por escrito. */
   LOTTERY_SYNC_ENABLED?: string;
+  /** Bucket R2 de respaldos (opcional hasta que R2 esté habilitado). */
+  BACKUPS?: R2Bucket;
 };
 
 export type AppEnv = {
@@ -36,6 +39,14 @@ export function createApp(options: AppOptions = {}) {
   const app = new Hono<AppEnv>();
 
   app.use("*", securityHeaders);
+
+  // Páginas públicas de la rifa: el Worker añade la vista previa del enlace (título y descripción).
+  app.use("/r/*", async (c, next) => {
+    c.set("deps", createDeps(c.env, options.overrides));
+    await next();
+  });
+  app.get("/r/:org/:raffle", serveRafflePage);
+  app.get("/r/:org/:raffle/privacidad", serveRafflePage);
 
   app.use("/api/*", async (c, next) => {
     c.set("deps", createDeps(c.env, options.overrides));

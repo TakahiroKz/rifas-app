@@ -37,7 +37,7 @@ flowchart LR
   T --> W
   P -.abre enlace.-> WA
 ```
-Un solo **Worker** sirve la API (`/api/*`) y los archivos estáticos del frontend (Workers Static Assets). Una sola unidad de despliegue, un solo dominio, sin CORS.
+Un solo **Worker** sirve la API (`/api/*`), las páginas públicas de las rifas (`/r/*`, con vista previa de enlace) y los archivos estáticos del frontend (Workers Static Assets). Una sola unidad de despliegue, un solo dominio, sin CORS.
 
 ## 3. Estilo: monorepo modular con capas (hexagonal ligera)
 ```
@@ -161,6 +161,7 @@ Se construye en el frontend con la respuesta de la reserva: `https://wa.me/<tel>
 | Números | `GET …/tickets` · `PUT …/tickets/:n/sale` · `PATCH …/tickets/:n/payment` · `DELETE …/tickets/:n` | ✅ Fase 2 |
 | Apartados | `GET …/reservations/:código` · `POST …/reservations/:código/sale` (vende todos los números del código) | ✅ Fase 2 |
 | Deudas / historial | `GET …/debts` · `GET …/history?number&beforeId&limit` | ✅ Fase 2 |
+| Reporte / CSV | `GET /admin/raffles/:id/report` · `GET /admin/raffles/:id/export.csv` | ✅ Fase 5 |
 | Loterías | `GET /admin/lotteries` · `…/lotteries/:id/calendar` · `GET/PUT …/lotteries/:id/results/:fecha` · `POST …/results/:fecha/fetch` | ✅ Fase 4 |
 | Premios | `GET/POST /admin/raffles/:id/prizes` · `PATCH/DELETE …/prizes/:premio` · `GET …/prizes/:premio/proposal` · `POST …/prizes/:premio/resolve` | ✅ Fase 4 |
 
@@ -175,8 +176,15 @@ Rutas: `/r/:org/:rifa` (elegir y apartar) y `/r/:org/:rifa/privacidad`. Tablero 
 Muestra la sección **Premios** con el resultado y los **números ganadores** (nunca nombres ni teléfonos). Una rifa cerrada queda en solo lectura.
 Al apartar: se verifica Turnstile, se reserva de forma atómica y se abre `https://wa.me/<teléfono sin +>?text=<mensaje>` con los números, el código de apartado, su vigencia y el enlace a la política de privacidad. Si el navegador bloquea la ventana, el panel de éxito ofrece el botón «Abrir WhatsApp». Si otro cliente ganó un número, se avisa y se refresca el tablero.
 
+## Operación (Fase 5)
+- **Resumen** por rifa: avance (vendido/apartado/disponible), dinero (recaudado, por cobrar, vencido), gráfico de actividad de 30 días (hora de Colombia) y **alerta de deudas vencidas** (también en la lista de rifas y en la pestaña Deudas).
+- **Exportación CSV** (UTF-8 con BOM, para Excel): números apartados y vendidos con comprador, pago, vencimiento, código y premios ganados. Las celdas que empiezan por `= + - @` se neutralizan contra **inyección de fórmulas**.
+- **Respaldo diario a R2** (Cron `0 8 * * *` UTC = 03:00 Colombia): NDJSON por tabla + `manifest.json` con SHA-256; retención de 30 días; sin R2 se omite. **Restauración** verificada contra el manifiesto, siempre en una base nueva (`scripts/restore-backup.ts`). Ver [`OPERACION.md`](OPERACION.md).
+- **Vista previa del enlace** (WhatsApp/redes): el Worker sirve `/r/:org/:rifa` con título y descripción de la rifa (todo escapado).
+- **Despliegue**: flujo manual con confirmación (lint, tipos y pruebas → migraciones → despliegue → verificación). Ver [`DESPLIEGUE.md`](DESPLIEGUE.md). **Requiere Workers Paid**: el hash de contraseñas (~54 ms de CPU) no cabe en los 10 ms del plan gratis.
+
 ## Panel de administración (`apps/web`)
-Pestaña **Premios**: crear/editar premios (fechas solo de días con sorteo), ver el resultado, confirmar y anunciar ganadores —avisando si alguno aún debe su número—, reprogramar si no hay ganador, o ingresar el resultado a mano.
+Pestaña **Resumen** (primera) y pestaña **Premios**: crear/editar premios (fechas solo de días con sorteo), ver el resultado, confirmar y anunciar ganadores —avisando si alguno aún debe su número—, reprogramar si no hay ganador, o ingresar el resultado a mano.
 SPA en `/admin`: ingreso, lista de rifas con avance y montos, creación de rifa, tablero de números (páginas de 200, salto directo a un número), venta pagada o con deuda y fecha, búsqueda de apartado por código para vender todos sus números de una vez, listado de deudas ordenado por fecha, historial paginado y ajustes (rifa y WhatsApp de la organización). Un apartado vencido se muestra como activo aunque el Cron aún no lo haya limpiado.
 
 ## 7. Entornos y despliegue

@@ -10,6 +10,8 @@ declare global {
       TURNSTILE_SECRET?: string;
       TURNSTILE_SITE_KEY?: string;
       RESERVE_LIMITER?: RateLimit;
+      LOTTERY_SYNC_ENABLED?: string;
+      BACKUPS?: R2Bucket;
     }
   }
 }
