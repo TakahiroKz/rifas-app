@@ -11,4 +11,5 @@ Plataforma web low cost para gestionar **los números de una rifa** (sin pagos e
 ## Documentación
 - [Plan del proyecto](docs/PLAN.md): alcance, estados, stack, modelo de datos, fases.
 - [Política de privacidad (borrador)](docs/PRIVACIDAD.md)
-- [`CLAUDE.md`](CLAUDE.md): contexto para asistentes de código.
+- [Arquitectura](docs/ARQUITECTURA.md)
+- [Fuente de resultados: Gane](docs/GANE-API.md)

@@ -92,7 +92,7 @@ Ejemplo: 1.º lugar = **últimas 2 cifras** del resultado; 2.º lugar = **primer
 Los números de la rifa **empiezan en 00** y se muestran con ceros a la izquierda (ancho = cifras de `total_numbers - 1`; 100 números → `00–99`; 10 000 números → `0000–9999`). **Máximo 4 cifras** por número..
 Al publicarse el resultado, el sistema calcula los números ganadores por premio, y el admin los **confirma y anuncia**.
 
-**Sin ganador**: el premio pasa a `reprogramado` y se **vuelve a evaluar con el próximo sorteo** de la lotería, en la fecha que ingrese el admin. Cada intento queda en el historial. El selector de fecha **solo habilita los días en que esa lotería sortea** (calendario derivado del histórico de Gane).
+**Sin ganador** (incluye que el número ganador no se haya vendido): según la política del premio que defina el admin, el premio **finaliza** o pasa a `reprogramado` y se **vuelve a evaluar con el próximo sorteo** de la lotería, en la fecha que ingrese el admin, hasta el máximo de reintentos que haya fijado (o sin límite). Cada intento queda en el historial. El selector de fecha **solo habilita los días en que esa lotería sortea** (calendario derivado del histórico de Gane).
 
 ### Riesgos
 - Términos de uso de cada fuente (ver Fuentes).
@@ -108,7 +108,7 @@ Al publicarse el resultado, el sistema calcula los números ganadores por premio
 - **organizations**: id, name, slug, whatsapp_phone (en config, formato `57XXXXXXXXXX`), created_at
 - **memberships**: user_id, org_id, role (`owner`/`admin`)
 - **raffles**: id, org_id, slug, title, description, total_numbers (10–10000), number_start (siempre 0), number_width, ticket_price, status (`borrador`/`activa`/`cerrada`), draw_date, created_at
-- **raffle_prizes**: id, raffle_id, place, description, lottery_id, match_type (`last`/`first`), digits (1–4), draw_date (la fija el admin y puede reprogramarla), status (`pendiente`/`anunciado`/`reprogramado`)
+- **raffle_prizes**: id, raffle_id, place, description, lottery_id, match_type (`last`/`first`), digits (1–4), draw_date (la fija el admin y puede reprogramarla), on_no_winner (`reprogramar`/`finalizar`), max_attempts (null = sin límite), status (`pendiente`/`anunciado`/`reprogramado`/`finalizado`)
 - **prize_draw_attempts**: id, raffle_prize_id, draw_date, draw_result_id, outcome (`ganador`/`sin_ganador`), created_at — historial de intentos
 - **raffle_winners**: raffle_prize_id, number, draw_result_id, confirmed_at
 - **tickets**: raffle_id, number, status (`activo`/`apartado`/`vendido`), payment_status (`pagado`/`debe`/null), due_date, buyer_name, buyer_phone, note, reserved_at, reserved_until, sold_at, updated_at — PK (raffle_id, number)
@@ -144,7 +144,7 @@ Sí se pueden usar **varios dominios**: Cloudflare Pages permite agregar varios 
 - Copias de seguridad de D1 (export programado).
 
 ## 10. Fases
-1. **Fase 0 – Repo y tooling**: estructura, TypeScript, lint/format, CI, `.env.example`, proyecto Cloudflare.
+1. **Fase 0 – Repo y tooling**: monorepo pnpm, TypeScript, Biome, Vitest, CI, `.env.example`, proyecto Cloudflare (Worker + D1) y dominio.
 2. **Fase 1 – Núcleo**: esquema D1 multi-tenant, API de rifas y números, reserva atómica, expiración a 24 h, historial, pruebas.
 3. **Fase 2 – Admin**: login, CRUD de rifas, tablero de números, vendido/pagado/debe con fecha, historial.
 4. **Fase 3 – Público**: cuadrícula, selección, apartado + WhatsApp, política de privacidad enlazada.
@@ -152,16 +152,8 @@ Sí se pueden usar **varios dominios**: Cloudflare Pages permite agregar varios 
 6. **Fase 5 – Pulido**: estadísticas, CSV, alertas de deuda vencida, despliegue y dominio.
 7. **Fase 6 – SaaS**: registro abierto, organizaciones, límites/planes, dominios por cliente, términos y condiciones.
 
-## 11. Estructura propuesta
-```
-rifas/
-├─ apps/web/         # frontend público + admin
-├─ apps/api/         # Workers + Hono + D1
-├─ packages/scrapers # adaptadores de loterías
-├─ migrations/       # SQL de D1
-├─ docs/
-└─ README.md
-```
+## 11. Arquitectura
+Ver [`ARQUITECTURA.md`](ARQUITECTURA.md): monorepo modular (`apps/api`, `apps/web`, `packages/core`, `packages/lottery-sources`, `packages/contracts`), Worker único con Hono + D1, reserva atómica, expiración, política de premios y estrategia de pruebas.
 
 ## 12. Decisiones tomadas
 | Tema | Decisión |
@@ -174,7 +166,8 @@ rifas/
 | Lógica de premios | **B: terminaciones de 1–4 cifras** (primeras o últimas). Cada coincidencia es un premio entregado. Aproximaciones quedan para más adelante |
 | Admin | `turifa.capitalfinaura.com/admin` |
 | Ganador por premio | Un solo número por premio; si coinciden varios, se entregan varios premios (cada uno es un premio) |
-| Sorteo sin ganador | Se vuelve a ejecutar con el **próximo sorteo**, con la fecha que ingrese el admin; cada intento queda en historial |
+| Sorteo sin ganador | **Parametrizable por premio**: `reprogramar` (próximo sorteo, fecha del admin, solo días con sorteo) o `finalizar`. Cada intento queda en historial |
+| Reintentos | Los define el admin por premio (o sin límite) |
 | Sorteos | No los hacemos ni captamos dinero; anunciamos ganadores con resultados de terceros |
 | Ganadores | N premios; regla por premio: primeras/últimas 1–4 cifras de una lotería |
 | Fuente de resultados | Gane (API/sitio), con respaldo manual |
@@ -185,8 +178,7 @@ rifas/
 | Infra | Cloudflare |
 
 ## 13. Preguntas abiertas
-1. **Número ganador sin vender** (`activo`): ¿ese premio se reprograma al próximo sorteo (propuesta) o queda desierto?
-2. **Máximo de reintentos** de un premio reprogramado (¿ilimitado, o p. ej. 3?).
-3. **Gane**: confirmar por escrito el permiso para consumir sus endpoints (ver `GANE-API.md`).
-4. ¿Ya cuentas con el permiso/autorización para tus rifas? (quien organiza la rifa sí lo necesita)
-5. Las variantes de domingo/festivo (*Chontico Festivo Noche*, *Dorado Festivo*): ¿cuentan automáticamente como "el mismo juego"? (propuesta: sí)
+1. **Gane**: confirmar por escrito el permiso para consumir sus endpoints (ver `GANE-API.md`).
+2. ¿Ya cuentas con el permiso/autorización para tus rifas? (quien organiza la rifa sí lo necesita)
+3. Las variantes de domingo/festivo (*Chontico Festivo Noche*, *Dorado Festivo*): se tratan como el mismo juego (supuesto actual).
+4. Respaldos: ¿alcanza una exportación diaria a R2 o prefieres otro destino?
