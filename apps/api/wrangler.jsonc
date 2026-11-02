@@ -16,13 +16,18 @@
   // Tareas programadas (se implementan en fases posteriores).
   "triggers": { "crons": ["*/10 * * * *"] },
 
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
 
-  // Pendiente (Fase 1): enlazar la base de datos D1 tras crearla con
-  //   wrangler d1 create rifas-db
-  // "d1_databases": [
-  //   { "binding": "DB", "database_name": "rifas-db", "database_id": "<ID>", "migrations_dir": "../../migrations" }
-  // ],
+  // Base de datos. Antes de desplegar: `wrangler d1 create rifas-db` y reemplazar database_id.
+  // En local (dev y pruebas) se usa una base SQLite simulada; el id no importa.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "rifas-db",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "../../migrations"
+    }
+  ]
   // Pendiente (Fase 2+): dominio personalizado
   // "routes": [{ "pattern": "turifa.capitalfinaura.com", "custom_domain": true }]
 }

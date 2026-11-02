@@ -1,6 +1,6 @@
 # Plan: Plataforma de rifas (microSaaS)
 
-> Estado: Fase 0 completada. Última actualización: 2026-11-02. Repo: `TakahiroKz/rifas-app`.
+> Estado: Fase 1 completada. Última actualización: 2026-11-02. Repo: `TakahiroKz/rifas-app`.
 
 ## 1. Visión
 Plataforma para gestionar **los números de una rifa** (sin pagos en línea) y, además, **consultar resultados de loterías y sorteos** (Colombia y otros países) para anunciar ganadores.
@@ -111,14 +111,14 @@ Al publicarse el resultado, el sistema calcula los números ganadores por premio
 - **raffle_prizes**: id, raffle_id, place, description, lottery_id, match_type (`last`/`first`), digits (1–4), draw_date (la fija el admin y puede reprogramarla), on_no_winner (`reprogramar`/`finalizar`), max_attempts (null = sin límite), status (`pendiente`/`anunciado`/`reprogramado`/`finalizado`)
 - **prize_draw_attempts**: id, raffle_prize_id, draw_date, draw_result_id, outcome (`ganador`/`sin_ganador`), created_at — historial de intentos
 - **raffle_winners**: raffle_prize_id, number, draw_result_id, confirmed_at
-- **tickets**: raffle_id, number, status (`activo`/`apartado`/`vendido`), payment_status (`pagado`/`debe`/null), due_date, buyer_name, buyer_phone, note, reserved_at, reserved_until, sold_at, updated_at — PK (raffle_id, number)
-- **ticket_events**: id, raffle_id, number, from_status, to_status, actor (`public`/`admin`/`system`), at, meta — historial
+- **tickets** (modelo disperso: solo filas `apartado`/`vendido`; `activo` = sin fila): raffle_id, number, org_id, status (`apartado`/`vendido`), payment_status (`pagado`/`debe`), due_date, buyer_name, buyer_phone, note, reservation_code, reserved_at, reserved_until, sold_at, updated_at — PK (raffle_id, number)
+- **ticket_events**: id, org_id, raffle_id, number, action (`reserve`/`expire`/`sell`/`update_payment`/`release`), from_status, to_status, actor (`public`/`admin`/`system`), reservation_code, meta, at — historial
 - **lotteries**: id, country, name, schedule, source_adapter (Gane u otra)
 - **draw_results**: id, lottery_id, draw_date, winning_number, series, source_url, raw, fetched_at, is_manual
 - Toda consulta se filtra por `org_id` (aislamiento entre organizadores).
 
 ### Tamaño: rifas de 10 a 10 000 números (máx. 4 cifras)
-- Se puede guardar solo `apartado`/`vendido` e inferir los libres por rango, o materializar las filas (máx. 10 000 por rifa, asumible en D1). Decidir en la Fase 1.
+- **Decidido**: modelo disperso (solo `apartado`/`vendido` tienen fila). Crear una rifa de 10 000 números no escribe filas en D1.
 - La cuadrícula pública debe ser ligera en móvil (virtualizada o paginada en rifas grandes); la API puede entregar solo los números **no libres**.
 - Reserva atómica con transacción/`batch` de D1 y verificación de filas afectadas.
 
@@ -145,8 +145,8 @@ Sí se pueden usar **varios dominios**: Cloudflare Pages permite agregar varios 
 
 ## 10. Fases
 1. **Fase 0 – Repo y tooling** ✅ (pendiente de tu lado: crear D1 y desplegar, ver README): monorepo pnpm, TypeScript, Biome, Vitest, CI, `.env.example`, proyecto Cloudflare (Worker + D1) y dominio.
-2. **Fase 1 – Núcleo**: esquema D1 multi-tenant, API de rifas y números, reserva atómica, expiración a 24 h, historial, pruebas.
-3. **Fase 2 – Admin**: login, CRUD de rifas, tablero de números, vendido/pagado/debe con fecha, historial.
+2. **Fase 1 – Núcleo** ✅: esquema D1 multi-tenant, dominio y casos de uso, reserva atómica, expiración a 24 h, historial y API pública, con 51 pruebas (incluye concurrencia y aislamiento entre organizaciones).
+3. **Fase 2 – Admin**: login (y exponer por HTTP los casos de uso de administración ya hechos), CRUD de rifas, tablero de números, vendido/pagado/debe con fecha, historial.
 4. **Fase 3 – Público**: cuadrícula, selección, apartado + WhatsApp, política de privacidad enlazada.
 5. **Fase 4 – Loterías**: modelo de resultados, 2–3 adaptadores de Colombia, entrada manual, vinculación a rifa y sugerencia de ganador.
 6. **Fase 5 – Pulido**: estadísticas, CSV, alertas de deuda vencida, despliegue y dominio.

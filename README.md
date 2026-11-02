@@ -6,7 +6,7 @@ Plataforma web low cost para gestionar **los números de una rifa** (sin pagos e
 - **Panel admin**: el organizador crea rifas, marca números como *vendido* (*pagado* o *debe* con fecha) y consulta el historial.
 - **Loterías**: resultados de Gane (API/scraping) para anunciar el ganador. La plataforma no hace sorteos ni capta dinero.
 
-> Estado: **Fase 0 completada** (estructura y herramientas). La lógica de negocio llega en la Fase 1. Ver [`docs/PLAN.md`](docs/PLAN.md).
+> Estado: **Fase 1 completada** (núcleo: números, reservas, historial y API pública). El panel admin llega en la Fase 2. Ver [`docs/PLAN.md`](docs/PLAN.md).
 
 ## Requisitos
 - Node.js 22 (`.nvmrc`) y [pnpm](https://pnpm.io) 10.
@@ -17,6 +17,10 @@ pnpm install       # instalar dependencias
 pnpm dev           # API (wrangler, :8787) + web (vite, :5173)
 pnpm check         # lint + typecheck + pruebas
 pnpm build         # compila la web y valida el Worker (dry-run)
+```
+Base de datos local (D1 simulada) y datos de ejemplo:
+```bash
+cd apps/api && pnpm exec wrangler d1 migrations apply rifas-db --local
 ```
 Para desarrollo local con secretos, copia `.dev.vars.example` a `apps/api/.dev.vars` (no se versiona).
 
