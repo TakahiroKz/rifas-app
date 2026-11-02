@@ -9,4 +9,5 @@ Aplicación web para gestionar **solo los números** de una rifa (no hay pagos e
 
 ## Documentación
 - [Plan del proyecto](docs/PLAN.md): alcance, stack, modelo de datos, flujos, fases.
+- [Política de privacidad (borrador)](docs/PRIVACIDAD.md)
 - [`CLAUDE.md`](CLAUDE.md): contexto para asistentes de código.
